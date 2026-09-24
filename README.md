@@ -13,7 +13,59 @@
 
 </div>
 
-> **From the same team: [ESON](https://github.com/thelabcorner/eson) — strict JSON, [ESB64](https://github.com/thelabcorner/es-b64) — Base64/UTF-8, [ESARR](https://github.com/thelabcorner/es-arr) — modern array methods, [ESSTR](https://github.com/thelabcorner/es-str) — string whitespace methods, [ESCHARS](https://github.com/thelabcorner/es-chars) — native bulk byte/string operations, [ESPACK](https://github.com/thelabcorner/espack) — self-extracting ExternalObject bundles, [ESHTTP](https://github.com/thelabcorner/es-http) — HTTP for ExtendScript, [ESMIN](https://github.com/thelabcorner/es-min) — ExtendScript-aware minification, [ESTIMER](https://github.com/thelabcorner/es-timer) — timing/profiling, and [ArcFit.dev](https://arcfit.dev) — deterministic arc warp for Illustrator.**
+## Part Of The Same Toolkit
+
+> Production-grade ExtendScript infrastructure for Illustrator-era JavaScript engines.
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### Runtime Primitives
+
+**[ESON](https://github.com/thelabcorner/eson)**  
+Strict RFC 8259 JSON for ExtendScript.
+
+**[ESB64](https://github.com/thelabcorner/es-b64)**  
+Base64 and UTF-8 utilities.
+
+**[ESARR](https://github.com/thelabcorner/es-arr)**  
+ES5+ Array compatibility methods.
+
+**[ESSTR](https://github.com/thelabcorner/es-str)**  
+String whitespace and trim methods.
+
+**[ESCHARS](https://github.com/thelabcorner/es-chars)**  
+Native bulk byte operations.
+
+**[ESHTTP](https://github.com/thelabcorner/es-http)**  
+HTTP transport for ExtendScript automation.
+
+**[ESTIMER](https://github.com/thelabcorner/es-timer)**  
+Microsecond timing for ExtendScript automation.
+
+</td>
+<td width="50%" valign="top">
+
+### Build & Integration Tools
+
+**[ESPACK](https://github.com/thelabcorner/espack)**  
+Self-extracting ExternalObject bundles.
+
+**[ESMIN](https://github.com/thelabcorner/es-min)**  
+Minification for shipped JSX bundles.
+
+**[ESABI](https://github.com/thelabcorner/esabi)**  
+Modern ExternalObject ABI declarations for native integrations.
+
+**ESOBF** <sub>coming soon</sub>  
+Obfuscation for hardened JSX distribution.
+
+</td>
+</tr>
+</table>
+
+Also from the same team: **[ArcFit.dev](https://arcfit.dev)**, deterministic arc warp for Illustrator.
 
 ---
 
