@@ -1,0 +1,13 @@
+/build/
+/build-asan/
+/build-analyze/
+/.idea/
+__pycache__/
+*.py[cod]
+*.obj
+*.pdb
+*.ilk
+*.exp
+*.lib
+*.dll
+*.exe

@@ -1,0 +1,40 @@
+{
+  "name": "vector-ipc",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Product-neutral local IPC substrate for scripting hosts and native plug-ins",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/thelabcorner/vector-ipc.git"
+  },
+  "homepage": "https://github.com/thelabcorner/vector-ipc",
+  "bugs": "https://github.com/thelabcorner/vector-ipc/issues",
+  "type": "module",
+  "scripts": {
+    "build": "node tools/build.mjs build",
+    "test": "node tools/wrapper_unit.mjs && node tools/build.mjs test && node tools/package_smoke.mjs",
+    "test:package": "node tools/package_smoke.mjs",
+    "test:analyze": "node tools/analyze.mjs",
+    "test:asan": "node tools/asan.mjs",
+    "test:stress": "node tools/stress.mjs",
+    "verify": "npm test && npm run test:analyze && npm run test:asan && npm run test:stress",
+    "bench": "node tools/bench.mjs",
+    "bench:matrix": "node tools/matrix_bench.mjs",
+    "bench:live": "python tools/live_bench.py",
+    "bench:live:wrapper": "python tools/live_wrapper_bench.py",
+    "bench:live:wrapper:full": "python tools/live_wrapper_bench.py --full",
+    "bench:live:matrix": "python tools/live_wrapper_matrix.py",
+    "bench:live:matrix:full": "python tools/live_wrapper_matrix.py --full",
+    "bench:live:text": "python tools/live_text_bench.py",
+    "bench:live:decode": "python tools/live_esb64_decode_compare.py",
+    "test:live": "python tools/live_wrapper_probe.py",
+    "test:live:ecosystem": "python tools/live_ecosystem_probe.py",
+    "test:live:info": "python tools/live_info_probe.py",
+    "test:live:raw": "python tools/live_transaction_probe.py",
+    "test:live:sessions": "python tools/live_sessions_probe.py",
+    "verify:live": "npm run test:live:info && npm run test:live:raw && npm run test:live && npm run test:live:sessions && npm run test:live:ecosystem",
+    "release:manifest": "node tools/release_manifest.mjs",
+    "clean": "node tools/build.mjs clean"
+  }
+}
