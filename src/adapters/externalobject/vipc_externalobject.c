@@ -62,10 +62,7 @@ static volatile LONG g_busy;
 #endif
 
 static void set_undefined(esabi_value *retval) {
-    if (!retval) return;
-    retval->payload.string_value = NULL;
-    retval->type = ESABI_TYPE_UNDEFINED;
-    retval->reserved = 0;
+    esabi_value_set_undefined(retval);
 }
 
 static int set_string_owned(
@@ -75,9 +72,7 @@ static int set_string_owned(
         free(owned_string);
         return 0;
     }
-    retval->payload.string_value = owned_string;
-    retval->type = ESABI_TYPE_STRING;
-    retval->reserved = 0;
+    esabi_value_set_string(retval, owned_string);
     return 1;
 }
 
