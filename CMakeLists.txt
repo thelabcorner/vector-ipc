@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(VectorIPC VERSION 0.1.0 LANGUAGES C)
+project(VectorIPC VERSION 0.1.1 LANGUAGES C)
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
@@ -61,10 +61,43 @@ else()
 endif()
 
 if(WIN32 AND VIPC_BUILD_EXTERNALOBJECT)
+    set(VIPC_ESABI_VERSION "0.3.0")
+    set(VIPC_ESABI_GIT_COMMIT "3e99040c43cef573b477ad372b2a3a96c4d3a7d7")
+    find_package(esabi ${VIPC_ESABI_VERSION} EXACT CONFIG QUIET)
+    if(TARGET esabi::esabi)
+        set(VIPC_ESABI_TARGET esabi::esabi)
+    else()
+        include(FetchContent)
+        FetchContent_Declare(
+            vectoripc_esabi
+            GIT_REPOSITORY https://github.com/thelabcorner/esabi.git
+            # ESABI v0.3.0, pinned to the peeled commit for reproducibility.
+            GIT_TAG ${VIPC_ESABI_GIT_COMMIT}
+        )
+        FetchContent_GetProperties(vectoripc_esabi)
+        if(NOT vectoripc_esabi_POPULATED)
+            cmake_policy(PUSH)
+            if(POLICY CMP0169)
+                cmake_policy(SET CMP0169 OLD)
+            endif()
+            FetchContent_Populate(vectoripc_esabi)
+            cmake_policy(POP)
+        endif()
+
+        # ESABI remains a private build dependency. EXCLUDE_FROM_ALL also
+        # suppresses ESABI's install rules when VectorIPC is installed.
+        add_subdirectory(
+            ${vectoripc_esabi_SOURCE_DIR}
+            ${vectoripc_esabi_BINARY_DIR}
+            EXCLUDE_FROM_ALL
+        )
+        set(VIPC_ESABI_TARGET esabi::esabi)
+    endif()
+
     add_library(vectoripc_externalobject SHARED
         src/adapters/externalobject/vipc_externalobject.c
     )
-    target_link_libraries(vectoripc_externalobject PRIVATE vectoripc)
+    target_link_libraries(vectoripc_externalobject PRIVATE vectoripc ${VIPC_ESABI_TARGET})
     target_include_directories(vectoripc_externalobject PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CMAKE_CURRENT_SOURCE_DIR}/src/adapters/externalobject
@@ -211,7 +244,7 @@ if(VIPC_BUILD_TESTS)
         add_executable(vectoripc_externalobject_smoke
             tests/externalobject_smoke.c
         )
-        target_link_libraries(vectoripc_externalobject_smoke PRIVATE vectoripc)
+        target_link_libraries(vectoripc_externalobject_smoke PRIVATE vectoripc ${VIPC_ESABI_TARGET})
         target_include_directories(vectoripc_externalobject_smoke PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/include
             ${CMAKE_CURRENT_SOURCE_DIR}/src/adapters/externalobject
@@ -232,6 +265,7 @@ if(VIPC_BUILD_TESTS)
         target_link_libraries(vectoripc_externalobject_sessions PRIVATE
             vectoripc
             vectoripc_externalobject
+            ${VIPC_ESABI_TARGET}
         )
         target_include_directories(vectoripc_externalobject_sessions PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/include

@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -62,6 +63,18 @@ try {
   const licenseText = readFileSync(installedLicense, "utf8");
   if (!licenseText.startsWith("MIT License")) {
     throw new Error("installed package is missing the expected MIT LICENSE");
+  }
+
+  for (const unexpected of [
+    resolve(installDir, "include", "esabi"),
+    resolve(installDir, "lib", "cmake", "esabi"),
+    resolve(installDir, "share", "licenses", "esabi"),
+  ]) {
+    if (existsSync(unexpected)) {
+      throw new Error(
+        "VectorIPC install unexpectedly vendors ESABI: " + unexpected,
+      );
+    }
   }
 
   const configureArgs = [

@@ -137,6 +137,14 @@ const protocolVersion = macro(
 );
 const wireMajor = macro(protocolHeader, "VIPC_WIRE_MAJOR");
 const wireMinor = macro(protocolHeader, "VIPC_WIRE_MINOR");
+const esabiVersion = cmake.match(
+  /set\(VIPC_ESABI_VERSION\s+"([^"]+)"\)/,
+)?.[1];
+const esabiCommit = cmake.match(
+  /set\(VIPC_ESABI_GIT_COMMIT\s+"([0-9a-f]{40})"\)/,
+)?.[1];
+if (!esabiVersion) fail("could not parse ESABI dependency version");
+if (!esabiCommit) fail("could not parse ESABI dependency commit");
 const adapterVersion = Number(
   adapter.match(/#define\s+VIPC_EO_ADAPTER_VERSION\s+([0-9]+)u/)?.[1],
 );
@@ -235,6 +243,14 @@ const manifest = {
     wireMinor,
     externalObjectAdapterVersion: adapterVersion,
     extendScriptWrapperVersion: wrapperVersion,
+  },
+  dependencies: {
+    esabi: {
+      version: esabiVersion,
+      tag: "v" + esabiVersion,
+      commit: esabiCommit,
+      repository: "https://github.com/thelabcorner/esabi.git",
+    },
   },
   digests: {
     algorithm: "sha256",

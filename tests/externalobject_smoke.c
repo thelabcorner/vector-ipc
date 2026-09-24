@@ -10,12 +10,12 @@
 #define NOMINMAX
 #include <windows.h>
 
-typedef long (*vipc_method_fn)(
-    vipc_es_tagged_data *,
-    long,
-    vipc_es_tagged_data *);
-typedef char *(*es_initialize_fn)(const vipc_es_tagged_data **, long);
-typedef long (*es_get_version_fn)(void);
+typedef esabi_error (ESABI_CALL *vipc_method_fn)(
+    esabi_value *,
+    esabi_long,
+    esabi_value *);
+typedef char *(ESABI_CALL *es_initialize_fn)(esabi_value *, esabi_long);
+typedef esabi_long (ESABI_CALL *es_get_version_fn)(void);
 typedef void (*es_free_mem_fn)(void *);
 typedef void (*es_terminate_fn)(void);
 
@@ -64,19 +64,19 @@ static void unload_exports(eo_exports *exports) {
     ZeroMemory(exports, sizeof(*exports));
 }
 
-static vipc_es_tagged_data number_arg(double value) {
-    vipc_es_tagged_data result;
+static esabi_value number_arg(double value) {
+    esabi_value result;
     ZeroMemory(&result, sizeof(result));
-    result.type = VIPC_ES_TYPE_DOUBLE;
-    result.data.fltval = value;
+    result.type = ESABI_TYPE_DOUBLE;
+    result.payload.double_value = value;
     return result;
 }
 
-static vipc_es_tagged_data string_arg(char *value) {
-    vipc_es_tagged_data result;
+static esabi_value string_arg(char *value) {
+    esabi_value result;
     ZeroMemory(&result, sizeof(result));
-    result.type = VIPC_ES_TYPE_STRING;
-    result.data.string = value;
+    result.type = ESABI_TYPE_STRING;
+    result.payload.string_value = value;
     return result;
 }
 
@@ -91,28 +91,28 @@ static double pack6(const uint8_t *bytes, uint32_t count) {
 
 static int call_string(
     eo_exports *exports,
-    vipc_es_tagged_data *args,
+    esabi_value *args,
     long argc,
     const char **out_text,
-    vipc_es_tagged_data *out_retval) {
+    esabi_value *out_retval) {
     long es_status;
     ZeroMemory(out_retval, sizeof(*out_retval));
 
     es_status = exports->method(args, argc, out_retval);
-    if (es_status != VIPC_ES_ERR_OK
-        || out_retval->type != VIPC_ES_TYPE_STRING
-        || !out_retval->data.string) {
+    if (es_status != ESABI_OK
+        || out_retval->type != ESABI_TYPE_STRING
+        || !out_retval->payload.string_value) {
         return 0;
     }
-    *out_text = out_retval->data.string;
+    *out_text = out_retval->payload.string_value;
     return 1;
 }
 
 static void free_result(
     eo_exports *exports,
-    vipc_es_tagged_data *retval) {
-    if (retval->type == VIPC_ES_TYPE_STRING && retval->data.string) {
-        exports->free_mem(retval->data.string);
+    esabi_value *retval) {
+    if (retval->type == ESABI_TYPE_STRING && retval->payload.string_value) {
+        exports->free_mem(retval->payload.string_value);
     }
     ZeroMemory(retval, sizeof(*retval));
 }
@@ -298,8 +298,8 @@ static int run_test(const char *dll_path) {
     DWORD wait_result;
     int failed = 0;
     const char *text = NULL;
-    vipc_es_tagged_data retval;
-    vipc_es_tagged_data args[32];
+    esabi_value retval;
+    esabi_value args[32];
     uint8_t endpoint_bytes[64];
     uint32_t endpoint_size;
     uint32_t endpoint_packs;
@@ -553,7 +553,7 @@ static int run_test(const char *dll_path) {
     text = NULL;
 
 cleanup_thread:
-    if (retval.type == VIPC_ES_TYPE_STRING && retval.data.string) {
+    if (retval.type == ESABI_TYPE_STRING && retval.payload.string_value) {
         free_result(&exports, &retval);
     }
     if (server_thread) {

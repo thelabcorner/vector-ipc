@@ -23,8 +23,8 @@ int main(void) {
 
     if (VIPC_VERSION_MAJOR != 0u
         || VIPC_VERSION_MINOR != 1u
-        || VIPC_VERSION_PATCH != 0u
-        || strcmp(VIPC_VERSION_STRING, "0.1.0") != 0
+        || VIPC_VERSION_PATCH != 1u
+        || strcmp(VIPC_VERSION_STRING, "0.1.1") != 0
         || vipc_abi_version() != VIPC_ABI_VERSION
         || vipc_protocol_validate(&message) != VIPC_PROTOCOL_OK) {
         return 1;

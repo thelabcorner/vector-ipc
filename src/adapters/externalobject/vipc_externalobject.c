@@ -61,23 +61,23 @@ static vipc_eo_session g_sessions[VIPC_EO_MAX_SESSIONS];
 static volatile LONG g_busy;
 #endif
 
-static void set_undefined(vipc_es_tagged_data *retval) {
+static void set_undefined(esabi_value *retval) {
     if (!retval) return;
-    retval->data.string = NULL;
-    retval->type = VIPC_ES_TYPE_UNDEFINED;
-    retval->filler = 0;
+    retval->payload.string_value = NULL;
+    retval->type = ESABI_TYPE_UNDEFINED;
+    retval->reserved = 0;
 }
 
 static int set_string_owned(
-    vipc_es_tagged_data *retval,
+    esabi_value *retval,
     char *owned_string) {
     if (!retval || !owned_string) {
         free(owned_string);
         return 0;
     }
-    retval->data.string = owned_string;
-    retval->type = VIPC_ES_TYPE_STRING;
-    retval->filler = 0;
+    retval->payload.string_value = owned_string;
+    retval->type = ESABI_TYPE_STRING;
+    retval->reserved = 0;
     return 1;
 }
 
@@ -131,24 +131,24 @@ static char *format_error(
 }
 
 static int numeric_to_u32(
-    const vipc_es_tagged_data *value,
+    const esabi_value *value,
     uint32_t *out) {
     double number;
 
     if (!value || !out) return 0;
 
-    if (value->type == VIPC_ES_TYPE_UINTEGER) {
-        *out = (uint32_t)value->data.intval;
+    if (value->type == ESABI_TYPE_UINTEGER) {
+        *out = (uint32_t)value->payload.signed_value;
         return 1;
     }
-    if (value->type == VIPC_ES_TYPE_INTEGER) {
-        if (value->data.intval < 0) return 0;
-        *out = (uint32_t)value->data.intval;
+    if (value->type == ESABI_TYPE_INTEGER) {
+        if (value->payload.signed_value < 0) return 0;
+        *out = (uint32_t)value->payload.signed_value;
         return 1;
     }
-    if (value->type != VIPC_ES_TYPE_DOUBLE) return 0;
+    if (value->type != ESABI_TYPE_DOUBLE) return 0;
 
-    number = value->data.fltval;
+    number = value->payload.double_value;
     if (!isfinite(number)
         || number < 0.0
         || number > 4294967295.0
@@ -160,22 +160,22 @@ static int numeric_to_u32(
 }
 
 static int numeric_to_u48(
-    const vipc_es_tagged_data *value,
+    const esabi_value *value,
     uint64_t *out) {
     double number;
     uint32_t small;
 
     if (!value || !out) return 0;
 
-    if (value->type == VIPC_ES_TYPE_INTEGER
-        || value->type == VIPC_ES_TYPE_UINTEGER) {
+    if (value->type == ESABI_TYPE_INTEGER
+        || value->type == ESABI_TYPE_UINTEGER) {
         if (!numeric_to_u32(value, &small)) return 0;
         *out = (uint64_t)small;
         return 1;
     }
-    if (value->type != VIPC_ES_TYPE_DOUBLE) return 0;
+    if (value->type != ESABI_TYPE_DOUBLE) return 0;
 
-    number = value->data.fltval;
+    number = value->payload.double_value;
     if (!isfinite(number)
         || number < 0.0
         || number > (double)VIPC_EO_MAX_PACKED
@@ -240,7 +240,7 @@ static int reserve_buffer(
 }
 
 static int unpack_bytes(
-    const vipc_es_tagged_data *packed,
+    const esabi_value *packed,
     uint32_t packed_count,
     uint8_t *out,
     uint32_t byte_count) {
@@ -541,7 +541,7 @@ static vipc_eo_session *session_allocate(uint32_t *out_handle) {
 }
 
 static vipc_eo_session *session_from_arg(
-    const vipc_es_tagged_data *arg,
+    const esabi_value *arg,
     uint32_t *out_handle) {
     uint32_t handle;
     vipc_eo_session *session;
@@ -584,7 +584,7 @@ static char *command_info(void) {
 }
 
 static char *command_connect(
-    const vipc_es_tagged_data *argv,
+    const esabi_value *argv,
     long argc) {
     uint32_t timeout_ms;
     uint32_t endpoint_size;
@@ -644,7 +644,7 @@ static char *command_connect(
 }
 
 static char *command_stage_reset(
-    const vipc_es_tagged_data *argv,
+    const esabi_value *argv,
     long argc) {
     vipc_eo_session *session;
 
@@ -657,7 +657,7 @@ static char *command_stage_reset(
 }
 
 static char *command_stage_append(
-    const vipc_es_tagged_data *argv,
+    const esabi_value *argv,
     long argc) {
     vipc_eo_session *session;
     uint32_t byte_count;
@@ -832,7 +832,7 @@ static char *transact_payload(
 }
 
 static char *command_transact(
-    const vipc_es_tagged_data *argv,
+    const esabi_value *argv,
     long argc) {
     vipc_eo_session *session;
     uint32_t timeout_ms;
@@ -862,7 +862,7 @@ static char *command_transact(
 }
 
 static char *command_transact_text(
-    const vipc_es_tagged_data *argv,
+    const esabi_value *argv,
     long argc) {
     vipc_eo_session *session;
     uint32_t timeout_ms;
@@ -877,15 +877,15 @@ static char *command_transact_text(
         || !numeric_to_u32(&argv[3], &operation)
         || !numeric_to_u32(&argv[4], &correlation_low)
         || !numeric_to_u32(&argv[5], &correlation_high)
-        || argv[6].type != VIPC_ES_TYPE_STRING
-        || !argv[6].data.string) {
+        || argv[6].type != ESABI_TYPE_STRING
+        || !argv[6].payload.string_value) {
         return duplicate_string(VIPC_PROTOCOL_VERSION_STRING "|ERR|ARGS|TRANSACT_TEXT");
     }
 
     session = session_from_arg(&argv[1], NULL);
     if (!session) return duplicate_string(VIPC_PROTOCOL_VERSION_STRING "|ERR|STATE|INVALID_HANDLE");
 
-    text = argv[6].data.string;
+    text = argv[6].payload.string_value;
     text_size = strlen(text);
     if (text_size > VIPC_EO_MAX_PAYLOAD_BYTES) {
         return duplicate_string(VIPC_PROTOCOL_VERSION_STRING "|ERR|LIMIT|TEXT_REQUEST");
@@ -905,7 +905,7 @@ static char *command_transact_text(
 }
 
 static char *command_send(
-    const vipc_es_tagged_data *argv,
+    const esabi_value *argv,
     long argc) {
     vipc_eo_session *session;
     uint32_t kind;
@@ -959,7 +959,7 @@ static char *command_send(
 }
 
 static char *command_receive(
-    const vipc_es_tagged_data *argv,
+    const esabi_value *argv,
     long argc) {
     vipc_eo_session *session;
     uint32_t timeout_ms;
@@ -974,7 +974,7 @@ static char *command_receive(
 }
 
 static char *command_close(
-    const vipc_es_tagged_data *argv,
+    const esabi_value *argv,
     long argc) {
     vipc_eo_session *session;
 
@@ -987,7 +987,7 @@ static char *command_close(
 }
 
 static char *dispatch(
-    vipc_es_tagged_data *argv,
+    esabi_value *argv,
     long argc) {
     uint32_t command;
 
@@ -1021,20 +1021,18 @@ static char *dispatch(
     }
 }
 
-long vipc(
-    vipc_es_tagged_data *argv,
-    long argc,
-    vipc_es_tagged_data *retval) {
+ESABI_DIRECT_FUNCTION(vipc)
+{
     char *result;
 
     set_undefined(retval);
-    if (!retval) return VIPC_ES_ERR_OK;
+    if (!retval) return ESABI_OK;
 
 #ifdef _WIN32
     if (InterlockedCompareExchange(&g_busy, 1, 0) != 0) {
         result = duplicate_string(VIPC_PROTOCOL_VERSION_STRING "|ERR|STATE|BUSY");
         (void)set_string_owned(retval, result);
-        return VIPC_ES_ERR_OK;
+        return ESABI_OK;
     }
 #endif
 
@@ -1045,12 +1043,11 @@ long vipc(
 #ifdef _WIN32
     (void)InterlockedExchange(&g_busy, 0);
 #endif
-    return VIPC_ES_ERR_OK;
+    return ESABI_OK;
 }
 
-char *ESInitialize(
-    const vipc_es_tagged_data **argv,
-    long argc) {
+ESABI_INITIALIZE_FUNCTION
+{
     (void)argv;
     (void)argc;
     /*
@@ -1060,14 +1057,17 @@ char *ESInitialize(
     return "vipc";
 }
 
-long ESGetVersion(void) {
+ESABI_VERSION_FUNCTION
+{
     return (long)VIPC_EO_ADAPTER_VERSION;
 }
 
-void ESFreeMem(void *pointer) {
+ESABI_FREE_FUNCTION
+{
     free(pointer);
 }
 
-void ESTerminate(void) {
+ESABI_TERMINATE_FUNCTION
+{
     clear_all_sessions();
 }

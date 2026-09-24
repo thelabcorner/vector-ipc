@@ -6,6 +6,36 @@ VectorIPC uses semantic product versions. The product version is intentionally
 independent of the C ABI version, wire protocol version, ExternalObject adapter
 version, and ExtendScript wrapper version.
 
+## [0.1.1] - 2026-09-23
+
+Patch release: migrate the ExternalObject host ABI definitions to ESABI v0.3.0.
+
+### Changed
+
+- Replaced VectorIPC's private copy of the ExtendScript ExternalObject
+  `TaggedData` layout, type tags, calling convention, lifecycle exports, and
+  packing declarations with the canonical `esabi::esabi` interface from
+  [ESABI v0.3.0](https://github.com/thelabcorner/esabi/releases/tag/v0.3.0).
+- ExternalObject builds now accept exactly ESABI `0.3.0` when installed and
+  otherwise fetch the peeled v0.3.0 commit
+  `3e99040c43cef573b477ad372b2a3a96c4d3a7d7` as an `EXCLUDE_FROM_ALL` private
+  dependency, so VectorIPC does not repackage ESABI's headers/CMake files.
+- Corrected the native `ESInitialize` declaration from a historical
+  pointer-to-pointer form to ESABI's documented value-array pointer signature.
+  VectorIPC never dereferenced that argument, so runtime behavior is unchanged.
+- Updated native adapter smoke/session tests to exercise the same ESABI types
+  and constants used by production code.
+
+### Compatibility
+
+- Product version: `0.1.1`.
+- C ABI remains `1`.
+- Wire protocol remains `VIPC/1.0`.
+- ExternalObject adapter remains `3`.
+- ExtendScript wrapper remains `5`.
+- No application operation IDs, wire bytes, payload limits, or wrapper commands
+  changed in this release.
+
 ## [0.1.0] - 2026-09-23
 
 First pre-release foundation.

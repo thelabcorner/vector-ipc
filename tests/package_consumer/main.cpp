@@ -6,7 +6,7 @@
 int main() {
     static_assert(VIPC_VERSION_MAJOR == 0u, "unexpected VectorIPC major version");
     static_assert(VIPC_VERSION_MINOR == 1u, "unexpected VectorIPC minor version");
-    static_assert(VIPC_VERSION_PATCH == 0u, "unexpected VectorIPC patch version");
+    static_assert(VIPC_VERSION_PATCH == 1u, "unexpected VectorIPC patch version");
     static_assert(VIPC_ABI_VERSION == 1u, "unexpected VectorIPC ABI");
     static_assert(VIPC_WIRE_HEADER_SIZE == 32u, "unexpected VectorIPC wire");
 

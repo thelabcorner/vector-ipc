@@ -23,6 +23,14 @@ persistent local helper process
 The DLL contains no product-specific document, serializer, database, network,
 or other business logic.
 
+## ABI dependency
+
+The adapter uses [ESABI v0.3.0](https://github.com/thelabcorner/esabi/releases/tag/v0.3.0) as the single definition of the ExtendScript ExternalObject binary boundary. VectorIPC no longer carries its own TaggedData layout, tag table, lifecycle signatures, or packing declarations.
+
+CMake first accepts an installed `esabi::esabi` package only when it is exactly version `0.3.0`. If one is not present, the ExternalObject build fetches the peeled `v0.3.0` commit `3e99040c43cef573b477ad372b2a3a96c4d3a7d7` and adds it as an `EXCLUDE_FROM_ALL` private build dependency. ESABI's own install rules are therefore excluded from VectorIPC's install/package surface. The small `vipc_externalobject_abi.h` file is now only a VectorIPC naming façade over ESABI types/constants.
+
+This migration also corrected the adapter's historical `ESInitialize` declaration from a pointer-to-pointer argument to the documented single value-array pointer. The adapter never dereferenced that argument, so wire/host behavior is unchanged; the declaration now matches the actual ABI contract.
+
 ## Host surface
 
 `ESInitialize` registers exactly one script-visible method:

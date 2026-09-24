@@ -1,6 +1,6 @@
 {
   "name": "vector-ipc",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Product-neutral local IPC substrate for scripting hosts and native plug-ins",
   "license": "MIT",

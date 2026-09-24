@@ -108,7 +108,7 @@ Native plug-in / C / C++ ─────┘
 
 The transport owns local IPC mechanics. Applications own operation IDs, payload schemas, serializers, helper lifecycle, and business logic.
 
-VectorIPC v0.1.0 is intentionally small: one fixed binary envelope, one public C ABI, persistent Windows named pipes, a header-only C++ ownership layer, and one ExtendScript ExternalObject adapter. The wire contains opaque bytes; JSON, ESON, CBOR, protobuf, flat structs, or no payload at all are application choices.
+VectorIPC v0.1.1 is intentionally small: one fixed binary envelope, one public C ABI, persistent Windows named pipes, a header-only C++ ownership layer, and one ExtendScript ExternalObject adapter. The wire contains opaque bytes; JSON, ESON, CBOR, protobuf, flat structs, or no payload at all are application choices.
 
 ---
 
@@ -122,7 +122,7 @@ VectorIPC v0.1.0 is intentionally small: one fixed binary envelope, one public C
 - **16 MiB native wire limit** — exact-boundary tests exercise payload sizes through `VIPC_MAX_PAYLOAD_BYTES`.
 - **Local Windows security boundary** — current-user DACL, `PIPE_REJECT_REMOTE_CLIENTS`, Windows-session-scoped endpoints, and peer PID/session metadata.
 - **Recoverable listener state** — transient clients that connect and disappear before accept cannot permanently strand the server listener.
-- **ExternalObject adapter v3** — up to 16 generation-tagged logical sessions in one loaded DLL, independent channels/staging buffers, stale-handle rejection.
+- **ExternalObject adapter v3** — up to 16 generation-tagged logical sessions in one loaded DLL, independent channels/staging buffers, stale-handle rejection; its host ABI is supplied by [ESABI v0.3.0](https://github.com/thelabcorner/esabi/releases/tag/v0.3.0).
 - **ExtendScript wrapper v5** — dependency-free core wrapper with optional ESON, ESB64, and ESCHARS composition.
 - **Release reproducibility** — `npm run release:manifest` emits exact commit/tag metadata, per-file and aggregate SHA-256 digests, and a tagged source archive.
 
@@ -144,16 +144,16 @@ VectorIPC v0.1.0 is intentionally small: one fixed binary envelope, one public C
 
 ## Get the Release
 
-**[VectorIPC v0.1.0](https://github.com/thelabcorner/vector-ipc/releases/tag/v0.1.0)** is the first public pre-release.
+**[VectorIPC v0.1.1](https://github.com/thelabcorner/vector-ipc/releases/tag/v0.1.1)** is the current public pre-release.
 
 Release assets include:
 
-- `vector-ipc-v0.1.0-windows-x64.zip` — installed Windows x64 package: static library, C/C++ headers, CMake package files, ExternalObject DLL/wrapper, and MIT license;
-- `vector-ipc-v0.1.0-source.zip` — deterministic tagged source archive;
-- `vector-ipc-v0.1.0.lock.json` — exact commit, compatibility versions, and per-file/aggregate SHA-256 digests;
+- `vector-ipc-v0.1.1-windows-x64.zip` — installed Windows x64 package: static library, C/C++ headers, CMake package files, ExternalObject DLL/wrapper, and MIT license;
+- `vector-ipc-v0.1.1-source.zip` — deterministic tagged source archive;
+- `vector-ipc-v0.1.1.lock.json` — exact commit, compatibility versions, and per-file/aggregate SHA-256 digests;
 - `SHA256SUMS.txt` — checksums for the published lock, source archive, and Windows package.
 
-For source consumers, pin `v0.1.0` rather than tracking the mutable `main` branch.
+For source consumers, pin `v0.1.1` rather than tracking the mutable `main` branch.
 
 ---
 
@@ -171,7 +171,7 @@ set(VIPC_BUILD_EXTERNALOBJECT OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
     vectoripc
     GIT_REPOSITORY https://github.com/thelabcorner/vector-ipc.git
-    GIT_TAG v0.1.0
+    GIT_TAG v0.1.1
 )
 FetchContent_MakeAvailable(vectoripc)
 
@@ -187,7 +187,7 @@ target_link_libraries(my_target PRIVATE VectorIPC::vectoripc)
 
 ### ExtendScript adapter
 
-Build with `VIPC_BUILD_EXTERNALOBJECT=ON` (the default on Windows), then deploy:
+Build with `VIPC_BUILD_EXTERNALOBJECT=ON` (the default on Windows). The adapter accepts installed ESABI exactly at `0.3.0`; otherwise it fetches the peeled v0.3.0 commit `3e99040c43cef573b477ad372b2a3a96c4d3a7d7` as a private build dependency. Then deploy:
 
 ```text
 build/Release/VectorIPCExternalObject.dll
@@ -265,9 +265,9 @@ For structured messages, `requestESON(..., ESON)` composes with ESON without mak
 
 ### Version domains
 
-| Surface | v0.1.0 |
+| Surface | v0.1.1 |
 |---|---|
-| Product version | `0.1.0` |
+| Product version | `0.1.1` |
 | C ABI | `1` |
 | Wire protocol | `VIPC/1.0` |
 | Wire header | 32 bytes |
@@ -309,7 +309,7 @@ See [docs/PROTOCOL.md](docs/PROTOCOL.md), [docs/NATIVE.md](docs/NATIVE.md), and 
 
 ## Validation
 
-The v0.1.0 candidate was qualified on Windows x64 with MSVC 19.44.35228 and live Adobe Illustrator 30.6.0 build 109R.
+The v0.1.1 candidate was qualified on Windows x64 with MSVC 19.44.35228 and live Adobe Illustrator 30.6.0 build 109R.
 
 | Check | Command | Result |
 |---|---|---|
@@ -358,7 +358,7 @@ Representation dominates large ExtendScript payloads: the documented 64 KiB nume
 
 ## Security Model
 
-VectorIPC's v0.1.0 Windows trust boundary is local OS identity, not application authentication:
+VectorIPC's v0.1.1 Windows trust boundary is local OS identity, not application authentication:
 
 - named pipes use a DACL restricted to the current user;
 - `PIPE_REJECT_REMOTE_CLIENTS` rejects remote clients;
@@ -383,11 +383,11 @@ Payload bytes are untrusted application data. VectorIPC does not deserialize, ev
 | CMake install / `find_package(VectorIPC 0.1)` | supported; C11 + C++17 consumers tested |
 | Adobe Illustrator 30.6.0 ExternalObject | live-certified |
 | ESON / ESB64 / ESCHARS composition | live-certified in Illustrator 30.6.0 |
-| Native Adobe `.aip` integration | same C/C++ ABI intended for direct linking; not separately host-certified in v0.1.0 |
-| macOS / POSIX | explicit unsupported stub in v0.1.0; Unix-domain transport planned |
-| 32-bit Windows | not a v0.1.0 release target |
+| Native Adobe `.aip` integration | same C/C++ ABI intended for direct linking; not separately host-certified in v0.1.1 |
+| macOS / POSIX | explicit unsupported stub in v0.1.1; Unix-domain transport planned |
+| 32-bit Windows | not a v0.1.1 release target |
 
-The generated CMake package uses `SameMinorVersion`: a 0.1.x package satisfies a 0.1 request, while the package smoke test proves that 0.1.0 does **not** satisfy a 0.2 request.
+The generated CMake package uses `SameMinorVersion`: a 0.1.x package satisfies a 0.1 request, while the package smoke test proves that 0.1.1 does **not** satisfy a 0.2 request.
 
 ---
 
@@ -464,7 +464,7 @@ Durable design decisions are recorded in [docs/DECISIONS.md](docs/DECISIONS.md).
 
 ## Known limitations
 
-- v0.1.0 implements the transport only on Windows; the POSIX source is intentionally an unsupported stub.
+- v0.1.1 implements the transport only on Windows; the POSIX source is intentionally an unsupported stub.
 - `vipc_channel_destroy()` and `vipc_server_destroy()` are not cross-thread cancellation APIs. Use finite deadlines, let in-flight work return, join the owning worker, then destroy the object.
 - The ExternalObject adapter is synchronous at the Illustrator call boundary even though its logical sessions own independent native channels.
 - The ExternalObject adapter caps payloads at 256 KiB even though the native wire cap is 16 MiB.

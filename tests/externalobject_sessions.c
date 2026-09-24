@@ -21,11 +21,11 @@ typedef struct echo_server_context {
     int failed;
 } echo_server_context;
 
-static vipc_es_tagged_data number_arg(double value) {
-    vipc_es_tagged_data result;
+static esabi_value number_arg(double value) {
+    esabi_value result;
     ZeroMemory(&result, sizeof(result));
-    result.type = VIPC_ES_TYPE_DOUBLE;
-    result.data.fltval = value;
+    result.type = ESABI_TYPE_DOUBLE;
+    result.payload.double_value = value;
     return result;
 }
 
@@ -39,30 +39,30 @@ static double pack6(const uint8_t *bytes, uint32_t count) {
 }
 
 static int call_text(
-    vipc_es_tagged_data *args,
+    esabi_value *args,
     long argc,
     char *out,
     size_t out_capacity) {
-    vipc_es_tagged_data retval;
+    esabi_value retval;
     long status;
     size_t length;
 
     ZeroMemory(&retval, sizeof(retval));
     status = vipc(args, argc, &retval);
-    if (status != VIPC_ES_ERR_OK
-        || retval.type != VIPC_ES_TYPE_STRING
-        || !retval.data.string) {
+    if (status != ESABI_OK
+        || retval.type != ESABI_TYPE_STRING
+        || !retval.payload.string_value) {
         return 0;
     }
 
-    length = strlen(retval.data.string);
+    length = strlen(retval.payload.string_value);
     if (length + 1u > out_capacity) {
-        ESFreeMem(retval.data.string);
+        ESFreeMem(retval.payload.string_value);
         return 0;
     }
 
-    memcpy(out, retval.data.string, length + 1u);
-    ESFreeMem(retval.data.string);
+    memcpy(out, retval.payload.string_value, length + 1u);
+    ESFreeMem(retval.payload.string_value);
     return 1;
 }
 
@@ -93,7 +93,7 @@ static int connect_adapter_text(
     const char *endpoint,
     char *result,
     size_t result_capacity) {
-    vipc_es_tagged_data args[32];
+    esabi_value args[32];
     uint8_t endpoint_bytes[80];
     uint32_t endpoint_size = (uint32_t)strlen(endpoint);
     uint32_t packed_count = (endpoint_size + 5u) / 6u;
@@ -131,7 +131,7 @@ static int stage_payload(
     uint32_t handle,
     const uint8_t *payload,
     uint32_t payload_size) {
-    vipc_es_tagged_data args[64];
+    esabi_value args[64];
     uint32_t packed_count = (payload_size + 5u) / 6u;
     uint32_t i;
     char result[128];
@@ -162,7 +162,7 @@ static int transact_adapter(
     uint32_t operation,
     uint32_t correlation,
     const char *expected_base64) {
-    vipc_es_tagged_data args[6];
+    esabi_value args[6];
     char result[256];
     char expected[256];
 
@@ -186,7 +186,7 @@ static int transact_adapter(
 }
 
 static int close_adapter(uint32_t handle) {
-    vipc_es_tagged_data args[2];
+    esabi_value args[2];
     char result[128];
 
     args[0] = number_arg(7.0);
@@ -391,7 +391,7 @@ int main(void) {
     uint32_t handle_a = 0u;
     uint32_t handle_b = 0u;
     int failed = 0;
-    vipc_es_tagged_data stale_args[2];
+    esabi_value stale_args[2];
     char stale_result[128];
     static const uint8_t payload_a[] = { 0x00u, 0xa1u, 0xa2u, 0xffu };
     static const uint8_t payload_b[] = { 0x00u, 0xb1u, 0xb2u, 0x80u, 0x7fu };
