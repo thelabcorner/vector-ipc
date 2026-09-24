@@ -58,6 +58,9 @@ Minification for shipped JSX bundles.
 **[ESABI](https://github.com/thelabcorner/esabi)**  
 Modern ExternalObject ABI declarations for native integrations.
 
+**[VectorIPC](https://github.com/thelabcorner/vector-ipc)**  
+Bounded local IPC for scripting hosts and native plug-ins.
+
 **ESOBF** <sub>coming soon</sub>  
 Obfuscation for hardened JSX distribution.
 
