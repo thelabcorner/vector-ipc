@@ -22,6 +22,7 @@
 - [Why VectorIPC?](#why-vectoripc)
 - [Features](#features)
 - [Which artifact should I use?](#which-artifact-should-i-use)
+- [Get the Release](#get-the-release)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [API](#api)
@@ -83,6 +84,21 @@ VectorIPC v0.1.0 is intentionally small: one fixed binary envelope, one public C
 | Best for | helpers, plug-ins, native tools | C++ plug-ins/helpers | Illustrator ExtendScript |
 
 **Rule of thumb:** share the service endpoint when components belong to the same application, but give each client its own channel.
+
+---
+
+## Get the Release
+
+**[VectorIPC v0.1.0](https://github.com/thelabcorner/vector-ipc/releases/tag/v0.1.0)** is the first public pre-release.
+
+Release assets include:
+
+- `vector-ipc-v0.1.0-windows-x64.zip` — installed Windows x64 package: static library, C/C++ headers, CMake package files, ExternalObject DLL/wrapper, and MIT license;
+- `vector-ipc-v0.1.0-source.zip` — deterministic tagged source archive;
+- `vector-ipc-v0.1.0.lock.json` — exact commit, compatibility versions, and per-file/aggregate SHA-256 digests;
+- `SHA256SUMS.txt` — checksums for the published lock, source archive, and Windows package.
+
+For source consumers, pin `v0.1.0` rather than tracking the mutable `main` branch.
 
 ---
 
