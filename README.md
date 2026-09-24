@@ -111,7 +111,7 @@ Native plug-in / C / C++ ─────┘
 
 The transport owns local IPC mechanics. Applications own operation IDs, payload schemas, serializers, helper lifecycle, and business logic.
 
-VectorIPC v0.1.1 is intentionally small: one fixed binary envelope, one public C ABI, persistent Windows named pipes, a header-only C++ ownership layer, and one ExtendScript ExternalObject adapter. The wire contains opaque bytes; JSON, ESON, CBOR, protobuf, flat structs, or no payload at all are application choices.
+VectorIPC v0.1.2 is intentionally small: one fixed binary envelope, one public C ABI, persistent Windows named pipes, a header-only C++ ownership layer, and one ExtendScript ExternalObject adapter. The wire contains opaque bytes; JSON, ESON, CBOR, protobuf, flat structs, or no payload at all are application choices.
 
 ---
 
@@ -147,16 +147,16 @@ VectorIPC v0.1.1 is intentionally small: one fixed binary envelope, one public C
 
 ## Get the Release
 
-**[VectorIPC v0.1.1](https://github.com/thelabcorner/vector-ipc/releases/tag/v0.1.1)** is the current public pre-release.
+**[VectorIPC v0.1.2](https://github.com/thelabcorner/vector-ipc/releases/tag/v0.1.2)** is the current public pre-release.
 
 Release assets include:
 
-- `vector-ipc-v0.1.1-windows-x64.zip` — installed Windows x64 package: static library, C/C++ headers, CMake package files, ExternalObject DLL/wrapper, and MIT license;
-- `vector-ipc-v0.1.1-source.zip` — deterministic tagged source archive;
-- `vector-ipc-v0.1.1.lock.json` — exact commit, compatibility versions, and per-file/aggregate SHA-256 digests;
+- `vector-ipc-v0.1.2-windows-x64.zip` — installed Windows x64 package: static library, C/C++ headers, CMake package files, ExternalObject DLL/wrapper, and MIT license;
+- `vector-ipc-v0.1.2-source.zip` — deterministic tagged source archive;
+- `vector-ipc-v0.1.2.lock.json` — exact commit, compatibility versions, and per-file/aggregate SHA-256 digests;
 - `SHA256SUMS.txt` — checksums for the published lock, source archive, and Windows package.
 
-For source consumers, pin `v0.1.1` rather than tracking the mutable `main` branch.
+For source consumers, pin `v0.1.2` rather than tracking the mutable `main` branch.
 
 ---
 
@@ -174,7 +174,7 @@ set(VIPC_BUILD_EXTERNALOBJECT OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
     vectoripc
     GIT_REPOSITORY https://github.com/thelabcorner/vector-ipc.git
-    GIT_TAG v0.1.1
+    GIT_TAG v0.1.2
 )
 FetchContent_MakeAvailable(vectoripc)
 
@@ -268,9 +268,9 @@ For structured messages, `requestESON(..., ESON)` composes with ESON without mak
 
 ### Version domains
 
-| Surface | v0.1.1 |
+| Surface | v0.1.2 |
 |---|---|
-| Product version | `0.1.1` |
+| Product version | `0.1.2` |
 | C ABI | `1` |
 | Wire protocol | `VIPC/1.0` |
 | Wire header | 32 bytes |
@@ -312,7 +312,7 @@ See [docs/PROTOCOL.md](docs/PROTOCOL.md), [docs/NATIVE.md](docs/NATIVE.md), and 
 
 ## Validation
 
-The v0.1.1 candidate was qualified on Windows x64 with MSVC 19.44.35228 and live Adobe Illustrator 30.6.0 build 109R.
+The v0.1.2 candidate was qualified on Windows x64 with MSVC 19.44.35228 and live Adobe Illustrator 30.6.0 build 109R.
 
 | Check | Command | Result |
 |---|---|---|
@@ -321,8 +321,8 @@ The v0.1.1 candidate was qualified on Windows x64 with MSVC 19.44.35228 and live
 | MSVC static analysis | `npm run test:analyze` | pass |
 | AddressSanitizer | `npm run test:asan` | pass; 11/11 targets |
 | Exact payload boundary | `npm run test:stress` | pass through 16 MiB |
-| Timeout/cancellation resources | `npm run test:stress` | 2,000 timeout cycles, handles 59 → 59 |
-| Accept/write cancellation | `npm run test:stress` | 2,000 accepts + 500 blocked writes, handles 59 → 59 |
+| Timeout/cancellation resources | `npm run test:stress` | 2,000 timeout cycles, handles 60 → 60 |
+| Accept/write cancellation | `npm run test:stress` | 2,000 accepts + 500 blocked writes, handles 60 → 60 |
 | Full duplex | `npm run test:stress` | 100,000 messages in each direction |
 | Small-frame soak | `npm run test:stress` | 1,000,000 verified frames |
 | Illustrator integration | `npm run verify:live` | adapter v3 / wrapper v5 / raw bytes / sessions / ESON + ESB64 + ESCHARS pass |
@@ -361,7 +361,7 @@ Representation dominates large ExtendScript payloads: the documented 64 KiB nume
 
 ## Security Model
 
-VectorIPC's v0.1.1 Windows trust boundary is local OS identity, not application authentication:
+VectorIPC's v0.1.2 Windows trust boundary is local OS identity, not application authentication:
 
 - named pipes use a DACL restricted to the current user;
 - `PIPE_REJECT_REMOTE_CLIENTS` rejects remote clients;
@@ -386,11 +386,11 @@ Payload bytes are untrusted application data. VectorIPC does not deserialize, ev
 | CMake install / `find_package(VectorIPC 0.1)` | supported; C11 + C++17 consumers tested |
 | Adobe Illustrator 30.6.0 ExternalObject | live-certified |
 | ESON / ESB64 / ESCHARS composition | live-certified in Illustrator 30.6.0 |
-| Native Adobe `.aip` integration | same C/C++ ABI intended for direct linking; not separately host-certified in v0.1.1 |
-| macOS / POSIX | explicit unsupported stub in v0.1.1; Unix-domain transport planned |
-| 32-bit Windows | not a v0.1.1 release target |
+| Native Adobe `.aip` integration | same C/C++ ABI intended for direct linking; not separately host-certified in v0.1.2 |
+| macOS / POSIX | explicit unsupported stub in v0.1.2; Unix-domain transport planned |
+| 32-bit Windows | not a v0.1.2 release target |
 
-The generated CMake package uses `SameMinorVersion`: a 0.1.x package satisfies a 0.1 request, while the package smoke test proves that 0.1.1 does **not** satisfy a 0.2 request.
+The generated CMake package uses `SameMinorVersion`: a 0.1.x package satisfies a 0.1 request, while the package smoke test proves that 0.1.2 does **not** satisfy a 0.2 request.
 
 ---
 
@@ -467,7 +467,7 @@ Durable design decisions are recorded in [docs/DECISIONS.md](docs/DECISIONS.md).
 
 ## Known limitations
 
-- v0.1.1 implements the transport only on Windows; the POSIX source is intentionally an unsupported stub.
+- v0.1.2 implements the transport only on Windows; the POSIX source is intentionally an unsupported stub.
 - `vipc_channel_destroy()` and `vipc_server_destroy()` are not cross-thread cancellation APIs. Use finite deadlines, let in-flight work return, join the owning worker, then destroy the object.
 - The ExternalObject adapter is synchronous at the Illustrator call boundary even though its logical sessions own independent native channels.
 - The ExternalObject adapter caps payloads at 256 KiB even though the native wire cap is 16 MiB.

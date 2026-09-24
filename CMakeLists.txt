@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(VectorIPC VERSION 0.1.1 LANGUAGES C)
+project(VectorIPC VERSION 0.1.2 LANGUAGES C)
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)

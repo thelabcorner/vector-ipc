@@ -6,6 +6,29 @@ VectorIPC uses semantic product versions. The product version is intentionally
 independent of the C ABI version, wire protocol version, ExternalObject adapter
 version, and ExtendScript wrapper version.
 
+## [0.1.2] - 2026-09-23
+
+Patch release: consolidate the ExternalObject adapter's return-value helpers on
+ESABI's canonical value setters.
+
+### Changed
+
+- Replaced the adapter's remaining hand-written `esabi_value` field assignments
+  with `esabi_value_set_undefined()` and `esabi_value_set_string()` from
+  [ESABI v0.3.0](https://github.com/thelabcorner/esabi/releases/tag/v0.3.0).
+- No behavioral change: the ESABI setters perform the same reset, type-tag, and
+  reserved-field writes, and the adapter's ownership, error, and payload
+  semantics are unchanged.
+
+### Compatibility
+
+- Product version: `0.1.2`.
+- C ABI remains `1`.
+- Wire protocol remains `VIPC/1.0`.
+- ExternalObject adapter remains `3`.
+- ExtendScript wrapper remains `5`.
+- ESABI dependency remains `v0.3.0` / `3e99040c43cef573b477ad372b2a3a96c4d3a7d7`.
+
 ## [0.1.1] - 2026-09-23
 
 Patch release: migrate the ExternalObject host ABI definitions to ESABI v0.3.0.
