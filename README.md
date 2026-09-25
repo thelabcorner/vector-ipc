@@ -109,10 +109,11 @@ Adobe scripting and native plug-ins frequently need work that should not live in
 
 VectorIPC separates those concerns:
 
-```text
-ExtendScript / ExternalObject ─┐
-                              ├── VectorIPC ── out-of-process helper
-Native plug-in / C / C++ ─────┘
+```mermaid
+flowchart LR
+    ES["ExtendScript / ExternalObject"] --> VIPC["VectorIPC"]
+    Native["Native plug-in / C / C++"] --> VIPC
+    VIPC --> Helper["Out-of-process helper"]
 ```
 
 The transport owns local IPC mechanics. Applications own operation IDs, payload schemas, serializers, helper lifecycle, and business logic.
@@ -123,17 +124,17 @@ VectorIPC v0.1.2 is intentionally small: one fixed binary envelope, one public C
 
 ## Features
 
-- **Fixed 32-byte wire envelope** — explicit little-endian encode/decode under `VIPC/1.0`; the in-memory ABI descriptor is separate from wire layout.
-- **Stable C ABI v1** — fixed-width public scalar types with compile-time size/offset assertions for `vipc_error` and `vipc_message`.
-- **C++17 ownership façade** — move-only `vectoripc::Channel`, `Server`, and non-throwing `Error`; no second runtime or protocol.
-- **Persistent full-duplex channels** — one send and one receive may run concurrently; same-direction overlap returns `VIPC_ERR_BUSY`.
-- **Bounded operations** — one deadline covers the whole send/receive/accept operation; ambiguous timeout/cancellation states poison the channel instead of risking frame desynchronization.
-- **16 MiB native wire limit** — exact-boundary tests exercise payload sizes through `VIPC_MAX_PAYLOAD_BYTES`.
-- **Local Windows security boundary** — current-user DACL, `PIPE_REJECT_REMOTE_CLIENTS`, Windows-session-scoped endpoints, and peer PID/session metadata.
-- **Recoverable listener state** — transient clients that connect and disappear before accept cannot permanently strand the server listener.
-- **ExternalObject adapter v3** — up to 16 generation-tagged logical sessions in one loaded DLL, independent channels/staging buffers, stale-handle rejection; its host ABI is supplied by [ESABI v0.3.0](https://github.com/thelabcorner/esabi/releases/tag/v0.3.0).
-- **ExtendScript wrapper v5** — dependency-free core wrapper with optional ESON, ESB64, and ESCHARS composition.
-- **Release reproducibility** — `npm run release:manifest` emits exact commit/tag metadata, per-file and aggregate SHA-256 digests, and a tagged source archive.
+- **Fixed 32-byte wire envelope**: explicit little-endian encode/decode under `VIPC/1.0`; the in-memory ABI descriptor is separate from wire layout.
+- **Stable C ABI v1**: fixed-width public scalar types with compile-time size/offset assertions for `vipc_error` and `vipc_message`.
+- **C++17 ownership façade**: move-only `vectoripc::Channel`, `Server`, and non-throwing `Error`; no second runtime or protocol.
+- **Persistent full-duplex channels**: one send and one receive may run concurrently; same-direction overlap returns `VIPC_ERR_BUSY`.
+- **Bounded operations**: one deadline covers the whole send/receive/accept operation; ambiguous timeout/cancellation states poison the channel instead of risking frame desynchronization.
+- **16 MiB native wire limit**: exact-boundary tests exercise payload sizes through `VIPC_MAX_PAYLOAD_BYTES`.
+- **Local Windows security boundary**: current-user DACL, `PIPE_REJECT_REMOTE_CLIENTS`, Windows-session-scoped endpoints, and peer PID/session metadata.
+- **Recoverable listener state**: transient clients that connect and disappear before accept cannot permanently strand the server listener.
+- **ExternalObject adapter v3**: up to 16 generation-tagged logical sessions in one loaded DLL, independent channels/staging buffers, stale-handle rejection; its host ABI is supplied by [ESABI v0.3.0](https://github.com/thelabcorner/esabi/releases/tag/v0.3.0).
+- **ExtendScript wrapper v5**: dependency-free core wrapper with optional ESON, ESB64, and ESCHARS composition.
+- **Release reproducibility**: `npm run release:manifest` emits exact commit/tag metadata, per-file and aggregate SHA-256 digests, and a tagged source archive.
 
 ---
 
@@ -157,10 +158,10 @@ VectorIPC v0.1.2 is intentionally small: one fixed binary envelope, one public C
 
 Release assets include:
 
-- `vector-ipc-v0.1.2-windows-x64.zip` — installed Windows x64 package: static library, C/C++ headers, CMake package files, ExternalObject DLL/wrapper, and MIT license;
-- `vector-ipc-v0.1.2-source.zip` — deterministic tagged source archive;
-- `vector-ipc-v0.1.2.lock.json` — exact commit, compatibility versions, and per-file/aggregate SHA-256 digests;
-- `SHA256SUMS.txt` — checksums for the published lock, source archive, and Windows package.
+- `vector-ipc-v0.1.2-windows-x64.zip`: installed Windows x64 package: static library, C/C++ headers, CMake package files, ExternalObject DLL/wrapper, and MIT license;
+- `vector-ipc-v0.1.2-source.zip`: deterministic tagged source archive;
+- `vector-ipc-v0.1.2.lock.json`: exact commit, compatibility versions, and per-file/aggregate SHA-256 digests;
+- `SHA256SUMS.txt`: checksums for the published lock, source archive, and Windows package.
 
 For source consumers, pin `v0.1.2` rather than tracking the mutable `main` branch.
 
@@ -343,7 +344,7 @@ Native measurements below are from the documented Windows test host: AMD Ryzen 9
 
 | Payload each way | Median RTT | p95 | Duplex user-payload throughput |
 |---:|---:|---:|---:|
-| 0 B | 10.2 µs | 12.7 µs | — |
+| 0 B | 10.2 µs | 12.7 µs | N/A |
 | 1 KiB | 20.0 µs | 23.7 µs | 91.6 MiB/s |
 | 16 KiB | 20.8 µs | 35.1 µs | 1.40 GiB/s |
 | 64 KiB | 22.0 µs | 43.1 µs | 4.69 GiB/s |
@@ -455,16 +456,23 @@ The manifest records the exact commit/tag, ABI/protocol/adapter/wrapper versions
 
 ## Repository layout
 
-```text
-include/vectoripc/                  public C/C++ headers
-src/core/                           protocol/status core
-src/platform/win/                   Windows named-pipe transport
-src/platform/posix/                 explicit v0.1 unsupported stub
-src/adapters/externalobject/        native adapter + ES3 wrapper
-tests/                              unit, fuzz, boundary, stress, package tests
-benchmarks/                         native transport benchmarks
-tools/                              build, analysis, live probes, release tooling
-docs/                               protocol, architecture, adapter, benchmark docs
+```mermaid
+flowchart TD
+    Repo["vector-ipc/"]
+
+    Repo --> Include["include/vectoripc/<br/>Public C/C++ headers"]
+    Repo --> Src["src/"]
+    Repo --> Tests["tests/<br/>Unit, fuzz, boundary, stress, package tests"]
+    Repo --> Bench["benchmarks/<br/>Native transport benchmarks"]
+    Repo --> Tools["tools/<br/>Build, analysis, live probes, release tooling"]
+    Repo --> Docs["docs/<br/>Protocol, architecture, adapter, benchmark docs"]
+
+    Src --> Core["core/<br/>Protocol/status core"]
+    Src --> Platform["platform/"]
+    Src --> Adapters["adapters/externalobject/<br/>Native adapter + ES3 wrapper"]
+
+    Platform --> Win["win/<br/>Windows named-pipe transport"]
+    Platform --> Posix["posix/<br/>Explicit v0.1 unsupported stub"]
 ```
 
 Durable design decisions are recorded in [docs/DECISIONS.md](docs/DECISIONS.md).
