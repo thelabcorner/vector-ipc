@@ -93,6 +93,15 @@ public:
         return native_ ? vipc_channel_peer_session_id(native_) : 0u;
     }
 
+    Status wait_readable(
+        std::uint32_t timeout_ms,
+        Error* error = nullptr) noexcept {
+        return vipc_channel_wait_readable(
+            native_,
+            timeout_ms,
+            error ? error->output() : nullptr);
+    }
+
     [[nodiscard]] vipc_channel* native_handle() const noexcept {
         return native_;
     }

@@ -16,6 +16,7 @@
 #endif
 #define VIPC_CONNECT_POLL_MS 25u
 #define VIPC_CONNECT_SLEEP_MS 2u
+#define VIPC_READABLE_POLL_MS 2u
 #define VIPC_DRAIN_CHUNK 4096u
 
 struct vipc_channel {
@@ -1176,6 +1177,103 @@ uint32_t vipc_channel_peer_pid(const vipc_channel *channel) {
 
 uint32_t vipc_channel_peer_session_id(const vipc_channel *channel) {
     return channel ? channel->peer_session_id : 0u;
+}
+
+vipc_status vipc_channel_wait_readable(
+    vipc_channel *channel,
+    uint32_t timeout_ms,
+    vipc_error *error) {
+    ULONGLONG deadline;
+    vipc_status status = VIPC_OK;
+
+    vipc_error_clear(error);
+    if (!channel || !timeout_is_valid(timeout_ms)) {
+        return set_error(
+            error,
+            VIPC_ERR_INVALID_ARGUMENT,
+            VIPC_PHASE_WAIT_READABLE,
+            ERROR_INVALID_PARAMETER);
+    }
+    if (!vipc_channel_is_open(channel)) {
+        return set_error(
+            error,
+            VIPC_ERR_NOT_CONNECTED,
+            VIPC_PHASE_WAIT_READABLE,
+            ERROR_INVALID_HANDLE);
+    }
+    if (InterlockedCompareExchange(&channel->read_busy, 1, 0) != 0) {
+        return set_error(
+            error,
+            VIPC_ERR_BUSY,
+            VIPC_PHASE_WAIT_READABLE,
+            ERROR_BUSY);
+    }
+
+    deadline = deadline_from_timeout(timeout_ms);
+    for (;;) {
+        HANDLE pipe = (HANDLE)InterlockedCompareExchangePointer(
+            (PVOID volatile *)&channel->pipe,
+            NULL,
+            NULL);
+        DWORD available = 0u;
+        DWORD remaining;
+
+        if (!pipe || pipe == INVALID_HANDLE_VALUE
+            || InterlockedCompareExchange(&channel->poisoned, 0, 0) != 0) {
+            status = set_error(
+                error,
+                VIPC_ERR_NOT_CONNECTED,
+                VIPC_PHASE_WAIT_READABLE,
+                ERROR_INVALID_HANDLE);
+            break;
+        }
+
+        if (!PeekNamedPipe(pipe, NULL, 0u, NULL, &available, NULL)) {
+            status = map_io_error(
+                GetLastError(),
+                VIPC_PHASE_WAIT_READABLE,
+                error);
+            break;
+        }
+        if (available != 0u) {
+            status = VIPC_OK;
+            break;
+        }
+
+        remaining = remaining_timeout(deadline);
+        if (remaining == 0u) {
+            status = set_error(
+                error,
+                VIPC_ERR_TIMEOUT,
+                VIPC_PHASE_WAIT_READABLE,
+                ERROR_SEM_TIMEOUT);
+            break;
+        }
+        /*
+         * VIPC_READABLE_POLL_MS is a nominal poll period, not a wake period.
+         * Sleep() rounds up to the system timer tick (15.625 ms on a default
+         * Windows timer resolution), so the effective readiness period is the
+         * tick, not 2 ms. Measured on the v0.1.3 qualification host over 300 s
+         * of waiting: 0.104 % of one core while idle, 6.7-8.2 ms median and
+         * 14.1-15.0 ms p95 wake latency across three runs. That envelope is
+         * accepted for helper loops that poll a persistent channel; see
+         * docs/BENCHMARKS.md and decision D23.
+         */
+        Sleep(min_dword(remaining, VIPC_READABLE_POLL_MS));
+    }
+
+    /*
+     * A readiness timeout consumed no stream bytes, so the channel is still
+     * synchronized and stays usable. A definitive terminal failure (peer gone,
+     * real I/O error) must not leave an apparently live channel behind: close it
+     * here exactly the way send() and receive() do, so vipc_channel_is_open()
+     * reports the truth and later calls report VIPC_ERR_NOT_CONNECTED.
+     */
+    if (status != VIPC_OK && status != VIPC_ERR_TIMEOUT) {
+        poison_channel(channel);
+    }
+    (void)InterlockedExchange(&channel->read_busy, 0);
+    return status;
 }
 
 vipc_status vipc_channel_send(

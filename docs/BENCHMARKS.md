@@ -52,6 +52,109 @@ These numbers measure VectorIPC itself. They do **not** include ExternalObject,
 ExtendScript string/base64 conversion, Illustrator SDK dispatch, a product
 serializer, or product business logic.
 
+## Readiness idle cost and wake latency — 2026-09-29
+
+Command:
+
+```powershell
+npm run bench:idle -- 60000 5 200 60
+```
+
+`vectoripc_readiness_idle_bench` measures the cost of *waiting* on a persistent
+channel with `vipc_channel_wait_readable()`: idle CPU while the peer sends
+nothing, and how long readiness takes to be observed after the peer writes.
+
+Environment:
+
+| Item | Value |
+|---|---|
+| CPU | AMD Ryzen 9 5900X 12-Core Processor (24 logical) |
+| OS | Windows 11 Pro 10.0.22631 build 22631 |
+| Build | Release x64, MSVC `/W4 /WX` |
+| Topology | client channel + idle peer thread in one process |
+| CPU metric | `GetThreadTimes` (waiter thread) and `GetProcessTimes` (process) |
+| Idle window | 5 samples × 60,000 ms = 300 s of continuous readiness waiting |
+| Wake samples | 61, peer send offset spread across a 200 ms window |
+
+Idle CPU over 300 s of continuous waiting with a silent peer:
+
+| Metric | Value |
+|---|---|
+| Waiter thread CPU, median sample | 62.500 ms per 60 s |
+| Waiter thread CPU, p95 sample | 78.125 ms per 60 s |
+| Aggregate share of one core | **0.104 %** |
+| Conservative upper bound | **0.130 %** (reported + one counter quantum per sample) |
+| Process CPU (all threads) | identical to the waiter thread; the idle peer contributes nothing |
+| Blocked control, 300 s of pure sleeping | **0.000 ms** process CPU (0.0000 %) |
+
+Readiness wake latency, measured from the peer's pre-send timestamp in the same
+`QueryPerformanceCounter` domain to the waiter's return:
+
+| Metric | Value |
+|---|---|
+| min | 0.275 ms |
+| median | **8.116 ms** |
+| p95 | **14.972 ms** |
+| max | 15.833 ms |
+| mean | 8.278 ms |
+
+Deadline accuracy: median wall/request ratio 0.9999, worst deviation from the
+requested 60,000 ms was 11.302 ms — the same single system timer tick the
+transport's `remaining_timeout()` helper already uses for accept/send/receive.
+
+Repeat runs on the same build, for distribution rather than a single number:
+
+| Run | Idle window | Aggregate idle CPU | Wake median | Wake p95 | Wake max |
+|---|---:|---:|---:|---:|---:|
+| 1 | 3 × 30 s | 0.139 % (bound 0.347 %) | 8.247 ms | 14.937 ms | 16.202 ms |
+| 2 | 3 × 30 s | 0.146 % (bound 0.172 %) | 6.671 ms | 14.052 ms | 15.221 ms |
+| 3 (qualifying) | 5 × 60 s | 0.104 % (bound 0.130 %) | 8.116 ms | 14.972 ms | 15.833 ms |
+
+### Why wake latency is tick-bounded, not 2 ms
+
+`VIPC_READABLE_POLL_MS` is a nominal **2 ms** poll period. `Sleep()` rounds up to
+the system timer tick, so on a default 15.625 ms Windows timer the readiness
+period is the tick, not 2 ms. The p95/max column sits exactly on that tick, and
+the min column (0.275 ms) is the occasional case where a write lands just after a
+poll. The constant is a latency knob, not a promise, and the source says so.
+
+This tick claim is about **wake latency** and is separate from the CPU
+accounting granularity discussed below; the two happen to be 15.625 ms on this
+host but are different quantities.
+
+The wake-latency harness deliberately makes the peer **spin** on
+`QueryPerformanceCounter` instead of calling `Sleep()`. A sleeping peer quantises
+to the same tick grid as the poller, phase-locks the two, and reports a
+fictitiously low ~0.04 ms median.
+
+### How the CPU figure is kept honest
+
+Windows per-thread CPU accounting is tick-quantised, and a busy-spinning thread
+that migrates between cores is over-reported. Three checks make the idle number
+interpretable rather than merely small:
+
+1. **Liveness check** — a 1,000 ms spin on the same thread must register CPU
+   (measured ratio 1.42, gated to the 0.5–2.0 band). This proves the counter is
+   not stuck at zero. The over-report is expected on a migrating spinner and is
+   exactly why the spin is *not* the number being reported.
+2. **Quantum detection** — the tool *derives* an observed accounting quantum
+   from the run itself: it takes the greatest common divisor of the non-zero
+   per-sample thread-CPU values and reports the result, rather than assuming a
+   fixed granularity. Each per-sample figure then reads as a bound — the true
+   value lies in `[reported, reported + quantum)`. The qualifying run detected a
+   **15.625 ms** quantum, which is what makes the headline figure a **bound**.
+   That value is a property of this host's `GetThreadTimes` accounting, not a
+   constant the transport or this document assumes for every sample of every
+   run; re-derive it whenever the tool's own output says otherwise.
+3. **Blocked control** — the same process, same peer, and the same 300 s wall
+   duration with no polling at all accrues exactly 0.000 ms of process CPU. Any
+   drift or background-thread cost would show up here, so the idle-phase figure
+   is attributable to the readiness poll.
+
+`npm run bench:idle` fails if the conservative bound exceeds 2 % of one core
+(override with the fifth argument). The qualifying run leaves more than a 15×
+margin, and the CPU is effectively zero either way.
+
 ## Native payload matrix — current Release build
 
 Command:

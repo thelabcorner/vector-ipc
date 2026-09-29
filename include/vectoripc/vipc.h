@@ -20,8 +20,8 @@ extern "C" {
 
 #define VIPC_VERSION_MAJOR 0u
 #define VIPC_VERSION_MINOR 1u
-#define VIPC_VERSION_PATCH 2u
-#define VIPC_VERSION_STRING "0.1.2"
+#define VIPC_VERSION_PATCH 3u
+#define VIPC_VERSION_STRING "0.1.3"
 
 #define VIPC_ABI_VERSION 1u
 #define VIPC_ENDPOINT_MAX 80u
@@ -66,7 +66,8 @@ enum {
     VIPC_PHASE_WRITE_PAYLOAD = 7u,
     VIPC_PHASE_READ_HEADER = 8u,
     VIPC_PHASE_READ_PAYLOAD = 9u,
-    VIPC_PHASE_CANCEL = 10u
+    VIPC_PHASE_CANCEL = 10u,
+    VIPC_PHASE_WAIT_READABLE = 11u
 };
 
 typedef struct vipc_error {
@@ -135,10 +136,11 @@ VIPC_API vipc_status vipc_client_connect(
 /*
  * Channel lifecycle and framed I/O.
  *
- * One send and one receive may run concurrently. Two sends or two receives on
- * the same channel return VIPC_ERR_BUSY.
+ * One send and one reader-side operation may run concurrently. A receive or
+ * wait-readable call counts as the reader-side operation; overlapping
+ * reader-side calls return VIPC_ERR_BUSY.
  *
- * vipc_channel_destroy() must not race an in-flight send/receive. Finite
+ * vipc_channel_destroy() must not race an in-flight send/receive/wait. Finite
  * operation timeouts are the shutdown boundary: let active calls return/join
  * before destroying the channel.
  */
@@ -146,6 +148,25 @@ VIPC_API void vipc_channel_destroy(vipc_channel *channel);
 VIPC_API int vipc_channel_is_open(const vipc_channel *channel);
 VIPC_API uint32_t vipc_channel_peer_pid(const vipc_channel *channel);
 VIPC_API uint32_t vipc_channel_peer_session_id(const vipc_channel *channel);
+
+/*
+ * Wait until at least one byte is readable without consuming stream data.
+ *
+ * VIPC_OK means a subsequent receive can begin immediately. VIPC_ERR_TIMEOUT
+ * means no bytes became readable before the deadline; unlike a receive timeout,
+ * this is non-destructive and leaves the channel open/synchronized.
+ *
+ * A definitive terminal failure - VIPC_ERR_PEER_CLOSED or a real I/O failure -
+ * is not a timeout: the channel is closed before returning, vipc_channel_is_open()
+ * then reports 0, and later operations report VIPC_ERR_NOT_CONNECTED.
+ *
+ * This call occupies the channel's single reader-side slot while it runs.
+ * VIPC_ERR_BUSY is returned immediately and never blocks.
+ */
+VIPC_API vipc_status vipc_channel_wait_readable(
+    vipc_channel *channel,
+    uint32_t timeout_ms,
+    vipc_error *error);
 
 VIPC_API vipc_status vipc_channel_send(
     vipc_channel *channel,

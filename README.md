@@ -118,7 +118,7 @@ flowchart LR
 
 The transport owns local IPC mechanics. Applications own operation IDs, payload schemas, serializers, helper lifecycle, and business logic.
 
-VectorIPC v0.1.2 is intentionally small: one fixed binary envelope, one public C ABI, persistent Windows named pipes, a header-only C++ ownership layer, and one ExtendScript ExternalObject adapter. The wire contains opaque bytes; JSON, ESON, CBOR, protobuf, flat structs, or no payload at all are application choices.
+VectorIPC v0.1.3 is intentionally small: one fixed binary envelope, one public C ABI, persistent Windows named pipes, a header-only C++ ownership layer, and one ExtendScript ExternalObject adapter. The wire contains opaque bytes; JSON, ESON, CBOR, protobuf, flat structs, or no payload at all are application choices.
 
 ---
 
@@ -127,8 +127,9 @@ VectorIPC v0.1.2 is intentionally small: one fixed binary envelope, one public C
 - **Fixed 32-byte wire envelope**: explicit little-endian encode/decode under `VIPC/1.0`; the in-memory ABI descriptor is separate from wire layout.
 - **Stable C ABI v1**: fixed-width public scalar types with compile-time size/offset assertions for `vipc_error` and `vipc_message`.
 - **C++17 ownership façade**: move-only `vectoripc::Channel`, `Server`, and non-throwing `Error`; no second runtime or protocol.
-- **Persistent full-duplex channels**: one send and one receive may run concurrently; same-direction overlap returns `VIPC_ERR_BUSY`.
-- **Bounded operations**: one deadline covers the whole send/receive/accept operation; ambiguous timeout/cancellation states poison the channel instead of risking frame desynchronization.
+- **Persistent full-duplex channels**: one send and one reader-side operation may run concurrently; same-direction overlap returns `VIPC_ERR_BUSY`.
+- **Non-consuming readiness wait**: `vipc_channel_wait_readable()` lets a long-lived server poll idle channels without starting a framed read; readiness timeout is non-destructive and leaves the channel synchronized. A definitive peer-close/I-O failure closes the channel, so `vipc_channel_is_open()` stays honest. Readiness is poll-based and bounded by the 15.625 ms system timer tick, not by the nominal 2 ms poll constant — see [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
+- **Bounded operations**: one deadline covers the whole send/receive/accept operation; once a framed receive starts, ambiguous timeout/cancellation states still poison the channel instead of risking frame desynchronization.
 - **16 MiB native wire limit**: exact-boundary tests exercise payload sizes through `VIPC_MAX_PAYLOAD_BYTES`.
 - **Local Windows security boundary**: current-user DACL, `PIPE_REJECT_REMOTE_CLIENTS`, Windows-session-scoped endpoints, and peer PID/session metadata.
 - **Recoverable listener state**: transient clients that connect and disappear before accept cannot permanently strand the server listener.
@@ -154,16 +155,16 @@ VectorIPC v0.1.2 is intentionally small: one fixed binary envelope, one public C
 
 ## Get the Release
 
-**[VectorIPC v0.1.2](https://github.com/thelabcorner/vector-ipc/releases/tag/v0.1.2)** is the current public pre-release.
+**[VectorIPC v0.1.3](https://github.com/thelabcorner/vector-ipc/releases/tag/v0.1.3)** is the current public pre-release.
 
 Release assets include:
 
-- `vector-ipc-v0.1.2-windows-x64.zip`: installed Windows x64 package: static library, C/C++ headers, CMake package files, ExternalObject DLL/wrapper, and MIT license;
-- `vector-ipc-v0.1.2-source.zip`: deterministic tagged source archive;
-- `vector-ipc-v0.1.2.lock.json`: exact commit, compatibility versions, and per-file/aggregate SHA-256 digests;
+- `vector-ipc-v0.1.3-windows-x64.zip`: installed Windows x64 package: static library, C/C++ headers, CMake package files, ExternalObject DLL/wrapper, and MIT license;
+- `vector-ipc-v0.1.3-source.zip`: deterministic tagged source archive;
+- `vector-ipc-v0.1.3.lock.json`: exact commit, compatibility versions, and per-file/aggregate SHA-256 digests;
 - `SHA256SUMS.txt`: checksums for the published lock, source archive, and Windows package.
 
-For source consumers, pin `v0.1.2` rather than tracking the mutable `main` branch.
+For source consumers, pin `v0.1.3` rather than tracking the mutable `main` branch.
 
 ---
 
@@ -181,7 +182,7 @@ set(VIPC_BUILD_EXTERNALOBJECT OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
     vectoripc
     GIT_REPOSITORY https://github.com/thelabcorner/vector-ipc.git
-    GIT_TAG v0.1.2
+    GIT_TAG v0.1.3
 )
 FetchContent_MakeAvailable(vectoripc)
 
@@ -275,9 +276,9 @@ For structured messages, `requestESON(..., ESON)` composes with ESON without mak
 
 ### Version domains
 
-| Surface | v0.1.2 |
+| Surface | v0.1.3 |
 |---|---|
-| Product version | `0.1.2` |
+| Product version | `0.1.3` |
 | C ABI | `1` |
 | Wire protocol | `VIPC/1.0` |
 | Wire header | 32 bytes |
@@ -300,6 +301,7 @@ vipc_server_destroy(...)
 
 vipc_client_connect(...)
 
+vipc_channel_wait_readable(...)
 vipc_channel_send(...)
 vipc_channel_receive(...)
 vipc_channel_destroy(...)
@@ -319,20 +321,23 @@ See [docs/PROTOCOL.md](docs/PROTOCOL.md), [docs/NATIVE.md](docs/NATIVE.md), and 
 
 ## Validation
 
-The v0.1.2 candidate was qualified on Windows x64 with MSVC 19.44.35228 and live Adobe Illustrator 30.6.0 build 109R.
+The v0.1.3 native/package candidate was qualified on Windows x64 with MSVC 19.44.35228. The ExternalObject adapter/wrapper are byte-unchanged from v0.1.2, whose live Adobe Illustrator 30.6.0 build 109R qualification remains the current adapter evidence.
 
 | Check | Command | Result |
 |---|---|---|
-| ES3 wrapper + native Release suite + installed package consumers | `npm test` | pass; 11/11 CTest targets, C11 and C++17 installed consumers |
+| ES3 wrapper + native Release suite + installed package consumers | `npm test` | pass; 12/12 CTest targets, C11 and C++17 installed consumers |
 | Protocol fuzz | included in `npm test` | 250,000 valid round trips + 250,000 mutated 32-byte headers |
+| Readiness primitive | included in `npm test` | repeated idle timeouts, peer close, reader-slot `VIPC_ERR_BUSY`, long-idle duplex survival |
 | MSVC static analysis | `npm run test:analyze` | pass |
-| AddressSanitizer | `npm run test:asan` | pass; 11/11 targets |
+| AddressSanitizer | `npm run test:asan` | pass; 12/12 targets |
 | Exact payload boundary | `npm run test:stress` | pass through 16 MiB |
-| Timeout/cancellation resources | `npm run test:stress` | 2,000 timeout cycles, handles 60 → 60 |
-| Accept/write cancellation | `npm run test:stress` | 2,000 accepts + 500 blocked writes, handles 60 → 60 |
+| Timeout/cancellation resources | `npm run test:stress` | 2,000 timeout cycles, handles 69 → 69 |
+| Accept/write cancellation | `npm run test:stress` | 2,000 accepts + 500 blocked writes, handles 69 → 69 |
+| Readiness stress | `npm run test:stress` | 200 idle rounds, then 20 × 5,000 ms (100 s) long-idle window |
 | Full duplex | `npm run test:stress` | 100,000 messages in each direction |
 | Small-frame soak | `npm run test:stress` | 1,000,000 verified frames |
-| Illustrator integration | `npm run verify:live` | adapter v3 / wrapper v5 / raw bytes / sessions / ESON + ESB64 + ESCHARS pass |
+| Idle readiness cost | `npm run bench:idle` | 0.104 % of one core over 300 s; blocked control 0.000 ms; wake median 8.116 ms / p95 14.972 ms |
+| Illustrator integration | v0.1.2 live evidence (adapter/wrapper unchanged in v0.1.3) | adapter v3 / wrapper v5 / raw bytes / sessions / ESON + ESB64 + ESCHARS pass |
 
 The protocol decoder is transactional: failed header validation leaves the caller's output descriptor untouched. The mutation fuzzer checks that property across the invalid-header corpus.
 
@@ -368,7 +373,7 @@ Representation dominates large ExtendScript payloads: the documented 64 KiB nume
 
 ## Security Model
 
-VectorIPC's v0.1.2 Windows trust boundary is local OS identity, not application authentication:
+VectorIPC's v0.1.3 Windows trust boundary is local OS identity, not application authentication:
 
 - named pipes use a DACL restricted to the current user;
 - `PIPE_REJECT_REMOTE_CLIENTS` rejects remote clients;
@@ -393,11 +398,11 @@ Payload bytes are untrusted application data. VectorIPC does not deserialize, ev
 | CMake install / `find_package(VectorIPC 0.1)` | supported; C11 + C++17 consumers tested |
 | Adobe Illustrator 30.6.0 ExternalObject | live-certified |
 | ESON / ESB64 / ESCHARS composition | live-certified in Illustrator 30.6.0 |
-| Native Adobe `.aip` integration | same C/C++ ABI intended for direct linking; not separately host-certified in v0.1.2 |
-| macOS / POSIX | explicit unsupported stub in v0.1.2; Unix-domain transport planned |
-| 32-bit Windows | not a v0.1.2 release target |
+| Native Adobe `.aip` integration | same C/C++ ABI intended for direct linking; not separately host-certified in v0.1.3 |
+| macOS / POSIX | explicit unsupported stub in v0.1.3; Unix-domain transport planned |
+| 32-bit Windows | not a v0.1.3 release target |
 
-The generated CMake package uses `SameMinorVersion`: a 0.1.x package satisfies a 0.1 request, while the package smoke test proves that 0.1.2 does **not** satisfy a 0.2 request.
+The generated CMake package uses `SameMinorVersion`: a 0.1.x package satisfies a 0.1 request, while the package smoke test proves that 0.1.3 does **not** satisfy a 0.2 request.
 
 ---
 
@@ -481,8 +486,9 @@ Durable design decisions are recorded in [docs/DECISIONS.md](docs/DECISIONS.md).
 
 ## Known limitations
 
-- v0.1.2 implements the transport only on Windows; the POSIX source is intentionally an unsupported stub.
+- v0.1.3 implements the transport only on Windows; the POSIX source is intentionally an unsupported stub.
 - `vipc_channel_destroy()` and `vipc_server_destroy()` are not cross-thread cancellation APIs. Use finite deadlines, let in-flight work return, join the owning worker, then destroy the object.
+- `vipc_channel_wait_readable()` is a `PeekNamedPipe()` poll. `Sleep()` rounds up to the 15.625 ms system timer tick, so readiness latency is tick-bounded (measured 8.1 ms median / 15.0 ms p95) rather than the 2 ms the poll constant names. A product needing sub-tick readiness should use a different mechanism, not a tighter constant.
 - The ExternalObject adapter is synchronous at the Illustrator call boundary even though its logical sessions own independent native channels.
 - The ExternalObject adapter caps payloads at 256 KiB even though the native wire cap is 16 MiB.
 - Large legacy ExtendScript numeric arrays remain expensive; text/binary-string representations are the preferred bulk paths.

@@ -74,6 +74,15 @@ uint32_t vipc_channel_peer_session_id(const vipc_channel *channel) {
     return 0;
 }
 
+vipc_status vipc_channel_wait_readable(
+    vipc_channel *channel,
+    uint32_t timeout_ms,
+    vipc_error *error) {
+    (void)channel;
+    (void)timeout_ms;
+    return unsupported(error, VIPC_PHASE_WAIT_READABLE);
+}
+
 vipc_status vipc_channel_send(
     vipc_channel *channel,
     const vipc_message *message,

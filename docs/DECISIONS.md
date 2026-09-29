@@ -271,3 +271,38 @@ pipe can strand subsequent clients behind a dead listener. The normal self-test
 repeats this race 32 times, immediately accepts a healthy client on the same
 server object after every transient, and verifies that process handle count
 remains stable.
+
+## D23 — Readiness waits poll, and their cost is a measured budget
+
+**Decision:** `vipc_channel_wait_readable()` readiness is delivered by a
+`PeekNamedPipe()` poll with a nominal 2 ms period and no overlapped read,
+cancellation, or event machinery. `VIPC_ERR_TIMEOUT` is non-destructive: no bytes
+are consumed and the channel stays open and synchronized. A definitive terminal
+failure — `VIPC_ERR_PEER_CLOSED` or a real I/O error — is *not* a timeout: the
+channel is closed before returning, so `vipc_channel_is_open()` reports the truth
+and later operations report `VIPC_ERR_NOT_CONNECTED`. The nominal poll period is
+a latency knob, never a promise.
+
+**Why:** the only non-consuming readiness primitive Windows offers for a
+byte-mode pipe is `PeekNamedPipe()`. A readiness wait must not start a framed
+read, because an abandoned partial frame desynchronizes the stream — that is
+exactly the failure mode `vipc_channel_receive()` handles by poisoning the
+channel. Overlapped zero-byte reads, `CancelIoEx()`, and per-channel kernel
+timers would buy sub-tick wake latency at the cost of a cancellation-stuck state
+the transport already has to defend against, a new per-channel handle, and a
+Windows 10 1803+ runtime capability check — all for a helper-loop latency that is
+already below the host's own event cadence.
+
+`Sleep()` rounds up to the system timer tick, so the *nominal* 2 ms poll is
+delivered at the 15.625 ms tick. Measured on the v0.1.3 qualification host over
+300 s of waiting: **0.104 % of one core** (bounded 0.130 %) while idle, against
+a matched 300 s blocked control of 0.000 ms process CPU, and a
+**6.7–8.2 ms median / 14.1–15.0 ms p95** readiness wake across three runs. The
+poll is a tick-bounded wait, not a 2 ms wait, and the source constant is
+documented accordingly.
+
+**How to revisit:** if a product ever needs readiness latency materially below
+the system timer tick, that is a new, explicitly tested primitive with its own
+budget — not a change to the meaning of the existing one. Re-run
+`npm run bench:idle` (5 × 60 s) before and after any such change; the acceptance
+envelope is the published idle-CPU bound, not the nominal constant.

@@ -68,15 +68,19 @@ A failed `Channel::connect()` or `Server::open()` leaves the destination's
 existing owned handle intact. A successful call replaces it.
 
 Destruction is not a cross-thread cancellation API. `Channel::reset()` /
-`vipc_channel_destroy()` must run only after in-flight send/receive calls have
-returned; `Server::reset()` / `vipc_server_destroy()` must run only after an
-in-flight accept has returned. Use finite operation/accept timeouts to observe
-shutdown, join the owning worker, then destroy the object.
+`vipc_channel_destroy()` must run only after in-flight readiness, send, and
+receive calls have returned; `Server::reset()` / `vipc_server_destroy()` must
+run only after an in-flight accept has returned. Destruction does not cancel a
+peer, wait out a deadline, or interrupt a poll — it waits for nothing, so the
+caller owns the join. Use finite operation/accept timeouts to observe shutdown,
+join the owning worker, then destroy the object.
 
 ## Full-duplex plug-in pattern
 
-VectorIPC permits **one read and one write concurrently on a channel**. It does
-not create those threads for the consumer.
+VectorIPC permits **one reader-side operation and one write concurrently on a
+channel**. "Reader-side" covers both `vipc_channel_receive()` and
+`vipc_channel_wait_readable()`; they share one slot. It does not create those
+threads for the consumer.
 
 A native Illustrator plug-in should normally look like:
 
@@ -114,6 +118,61 @@ Whether a product uses:
 
 is intentionally outside the transport. A long-running service and a tiny
 single-purpose helper do not have the same scheduling requirements.
+
+## Readiness wait
+
+`vipc_channel_wait_readable()` (C) / `Channel::wait_readable()` (C++) answers one
+question — is at least one byte readable? — **without consuming stream data**:
+
+```cpp
+vectoripc::Error error;
+
+switch (channel.wait_readable(2000, &error)) {
+case VIPC_OK:
+    // Bytes are available; a receive can start immediately.
+    break;
+case VIPC_ERR_TIMEOUT:
+    // Non-destructive: nothing consumed, channel still open and synchronized.
+    break;
+case VIPC_ERR_BUSY:
+    // Another reader-side call owns the slot. Returned immediately.
+    break;
+default:
+    // Terminal (peer closed / real I/O failure): the channel is now closed.
+    break;
+}
+```
+
+Use it to wait on a persistent channel that may sit idle for a long time without
+starting a framed read. Like a receive, it takes a finite timeout — there is no
+unbounded wait — and it occupies the channel's single reader-side slot while it
+runs, so an overlapping `wait_readable()` or `vipc_channel_receive()` returns
+`VIPC_ERR_BUSY` immediately rather than blocking. A send may run concurrently
+with either.
+
+### Timeout semantics differ from receive, deliberately
+
+| Call | On timeout | Channel afterwards |
+|---|---|---|
+| `wait_readable()` | `VIPC_ERR_TIMEOUT` | **non-destructive** — no bytes consumed, still open and synchronized |
+| `receive()` | `VIPC_ERR_TIMEOUT` | **destructive** — the hard deadline expired mid-frame, so the channel is poisoned |
+
+A readiness timeout is safe precisely because no framed read has begun. A
+receive timeout cannot make that promise: a partial header or payload may
+already have been consumed and the byte stream cannot be resynchronised, so the
+channel is poisoned rather than reused.
+
+A terminal readiness failure is different again. `VIPC_ERR_PEER_CLOSED` and real
+I/O failures are not timeouts: the channel is closed before the call returns, so
+`vipc_channel_is_open()` reports the truth and later operations report
+`VIPC_ERR_NOT_CONNECTED`. Always re-check `vipc_channel_is_open()` after a
+readiness return that is neither `VIPC_OK`, `VIPC_ERR_TIMEOUT`, nor
+`VIPC_ERR_BUSY`.
+
+Readiness is delivered by a `PeekNamedPipe()` poll with a nominal 2 ms period.
+`Sleep()` rounds up to the system timer tick, so observed wake latency is
+tick-bounded rather than 2 ms — see [docs/BENCHMARKS.md](BENCHMARKS.md) and
+decision D23. The constant is a latency knob, never a promise.
 
 ## Server/helper pattern
 

@@ -1,6 +1,6 @@
 {
   "name": "vector-ipc",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "description": "Product-neutral local IPC substrate for scripting hosts and native plug-ins",
   "license": "MIT",
@@ -21,6 +21,7 @@
     "verify": "npm test && npm run test:analyze && npm run test:asan && npm run test:stress",
     "bench": "node tools/bench.mjs",
     "bench:matrix": "node tools/matrix_bench.mjs",
+    "bench:idle": "node tools/readiness_bench.mjs",
     "bench:live": "python tools/live_bench.py",
     "bench:live:wrapper": "python tools/live_wrapper_bench.py",
     "bench:live:wrapper:full": "python tools/live_wrapper_bench.py --full",

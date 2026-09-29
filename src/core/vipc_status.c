@@ -44,6 +44,7 @@ const char *vipc_phase_name(vipc_phase phase) {
         case VIPC_PHASE_READ_HEADER: return "read-header";
         case VIPC_PHASE_READ_PAYLOAD: return "read-payload";
         case VIPC_PHASE_CANCEL: return "cancel";
+        case VIPC_PHASE_WAIT_READABLE: return "wait-readable";
         default: return "unknown";
     }
 }

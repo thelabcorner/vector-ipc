@@ -89,9 +89,19 @@ None of those definitions belong in VectorIPC.
 
 A channel is full duplex:
 
-- one reader may be in flight;
+- one reader-side operation may be in flight — either
+  `vipc_channel_receive()` or `vipc_channel_wait_readable()`. They contend for
+  the same single reader slot, because a readiness wait must observe the same
+  stream state a framed read would;
 - one writer may be in flight concurrently;
-- a second reader or second writer returns `VIPC_ERR_BUSY`.
+- a second reader-side call or a second writer returns `VIPC_ERR_BUSY`
+  immediately, without blocking or consuming a deadline.
+
+Sharing the reader slot is what keeps a readiness wait honest: it never starts a
+framed read, so a readiness timeout leaves the channel synchronized, but it also
+cannot run concurrently with a receive that has already claimed the stream.
+Applications that want to alternate "is anything readable?" with "read a frame"
+on one thread simply call the two in sequence on that thread.
 
 This is enough for a native plug-in to keep a dedicated receive loop for helper
 events while another thread/queue emits notifications and requests. Higher-level

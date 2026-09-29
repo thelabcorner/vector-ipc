@@ -130,6 +130,11 @@ typedef struct server_context {
     int failures;
 } server_context;
 
+typedef struct readable_context {
+    vipc_server *server;
+    int failures;
+} readable_context;
+
 static void server_check(server_context *context, int condition, const char *label) {
     if (!condition) {
         fprintf(stderr, "SERVER FAIL: %s\n", label);
@@ -244,6 +249,311 @@ static DWORD WINAPI server_thread_main(LPVOID opaque) {
 
     vipc_channel_destroy(channel);
     return 0u;
+}
+
+static DWORD WINAPI readable_server_main(LPVOID opaque) {
+    readable_context *context = (readable_context *)opaque;
+    vipc_channel *channel = NULL;
+    vipc_error error;
+    vipc_status status;
+    vipc_message event;
+    static const uint8_t payload[] = { 'r', 'e', 'a', 'd', 'y' };
+
+    status = vipc_server_accept(context->server, 2000u, &channel, &error);
+    if (status != VIPC_OK || channel == NULL) {
+        ++context->failures;
+        return 1u;
+    }
+
+    /* Keep the accepted channel idle beyond the client's first readiness
+     * deadline. A readiness timeout must not consume or poison stream state. */
+    Sleep(100u);
+
+    event.kind = VIPC_KIND_EVENT;
+    event.flags = VIPC_FLAG_NONE;
+    event.operation = VIPC_APP_OPERATION_MIN + 90u;
+    event.correlation_id = UINT64_C(0x9090);
+    event.payload_size = (uint32_t)sizeof(payload);
+    status = vipc_channel_send(
+        channel,
+        &event,
+        payload,
+        2000u,
+        &error);
+    if (status != VIPC_OK) {
+        ++context->failures;
+    }
+
+    vipc_channel_destroy(channel);
+    return context->failures == 0 ? 0u : 1u;
+}
+
+static void test_wait_readable_preserves_idle_channel(void) {
+    char endpoint[64];
+    vipc_server *server = NULL;
+    vipc_channel *client = NULL;
+    readable_context context;
+    HANDLE thread = NULL;
+    DWORD thread_id = 0;
+    DWORD wait_result;
+    vipc_error error;
+    vipc_status status;
+    vipc_message received;
+    uint8_t payload[16];
+    uint32_t payload_size = 0u;
+    ULONGLONG started;
+    ULONGLONG elapsed;
+
+    (void)sprintf_s(
+        endpoint,
+        sizeof(endpoint),
+        "readable-%lu",
+        (unsigned long)GetCurrentProcessId());
+
+    status = vipc_server_create(endpoint, &server, &error);
+    CHECK(status == VIPC_OK, "readable server create");
+    if (status != VIPC_OK) return;
+
+    context.server = server;
+    context.failures = 0;
+    thread = CreateThread(
+        NULL,
+        0,
+        readable_server_main,
+        &context,
+        0,
+        &thread_id);
+    CHECK(thread != NULL, "readable server thread");
+    if (!thread) {
+        vipc_server_destroy(server);
+        return;
+    }
+
+    status = vipc_client_connect(endpoint, 2000u, &client, &error);
+    CHECK(status == VIPC_OK, "readable client connect");
+    if (status != VIPC_OK) {
+        (void)WaitForSingleObject(thread, 2500u);
+        (void)CloseHandle(thread);
+        vipc_server_destroy(server);
+        return;
+    }
+
+    started = GetTickCount64();
+    status = vipc_channel_wait_readable(client, 20u, &error);
+    elapsed = GetTickCount64() - started;
+    CHECK(status == VIPC_ERR_TIMEOUT, "readable idle timeout");
+    CHECK(error.phase == VIPC_PHASE_WAIT_READABLE, "readable timeout phase");
+    CHECK(elapsed < 150u, "readable timeout remains bounded");
+    CHECK(vipc_channel_is_open(client) == 1,
+        "readable timeout preserves channel");
+
+    status = vipc_channel_wait_readable(client, 2000u, &error);
+    CHECK(status == VIPC_OK, "readable wakes when bytes arrive");
+    CHECK(vipc_channel_is_open(client) == 1,
+        "readable success preserves channel");
+
+    status = vipc_channel_receive(
+        client,
+        &received,
+        payload,
+        (uint32_t)sizeof(payload),
+        &payload_size,
+        2000u,
+        &error);
+    CHECK(status == VIPC_OK, "receive after readable wait");
+    CHECK(received.kind == VIPC_KIND_EVENT, "readable event kind");
+    CHECK(received.operation == VIPC_APP_OPERATION_MIN + 90u,
+        "readable event operation");
+    CHECK(received.correlation_id == UINT64_C(0x9090),
+        "readable event correlation");
+    CHECK(payload_size == 5u && memcmp(payload, "ready", 5u) == 0,
+        "readable wait consumes no payload");
+
+    vipc_channel_destroy(client);
+    wait_result = WaitForSingleObject(thread, 2500u);
+    CHECK(wait_result == WAIT_OBJECT_0, "readable server exits");
+    CHECK(context.failures == 0, "readable server assertions");
+    (void)CloseHandle(thread);
+    vipc_server_destroy(server);
+}
+
+static void test_server_wait_readable_preserves_idle_channel(void) {
+    char endpoint[64];
+    vipc_server *server = NULL;
+    vipc_channel *client = NULL;
+    vipc_channel *accepted = NULL;
+    vipc_error error;
+    vipc_status status;
+    vipc_message request;
+    vipc_message received;
+    uint8_t payload[16];
+    uint32_t payload_size = 0u;
+    static const uint8_t request_payload[] = { 's', 'e', 'r', 'v', 'e', 'r' };
+
+    (void)sprintf_s(
+        endpoint,
+        sizeof(endpoint),
+        "server-readable-%lu",
+        (unsigned long)GetCurrentProcessId());
+
+    status = vipc_server_create(endpoint, &server, &error);
+    CHECK(status == VIPC_OK, "server-readable server create");
+    if (status != VIPC_OK) return;
+
+    status = vipc_client_connect(endpoint, 2000u, &client, &error);
+    CHECK(status == VIPC_OK, "server-readable client connect");
+    if (status != VIPC_OK) {
+        vipc_server_destroy(server);
+        return;
+    }
+
+    status = vipc_server_accept(server, 2000u, &accepted, &error);
+    CHECK(status == VIPC_OK, "server-readable accept");
+    if (status != VIPC_OK) {
+        vipc_channel_destroy(client);
+        vipc_server_destroy(server);
+        return;
+    }
+
+    status = vipc_channel_wait_readable(accepted, 20u, &error);
+    CHECK(status == VIPC_ERR_TIMEOUT, "server-readable idle timeout");
+    CHECK(error.phase == VIPC_PHASE_WAIT_READABLE,
+        "server-readable timeout phase");
+    CHECK(vipc_channel_is_open(accepted) == 1,
+        "server-readable timeout preserves accepted channel");
+    CHECK(vipc_channel_is_open(client) == 1,
+        "server-readable timeout preserves peer channel");
+
+    request.kind = VIPC_KIND_REQUEST;
+    request.flags = VIPC_FLAG_NONE;
+    request.operation = VIPC_APP_OPERATION_MIN + 91u;
+    request.correlation_id = UINT64_C(0x9191);
+    request.payload_size = (uint32_t)sizeof(request_payload);
+    status = vipc_channel_send(
+        client,
+        &request,
+        request_payload,
+        2000u,
+        &error);
+    CHECK(status == VIPC_OK, "server-readable client sends after idle timeout");
+
+    status = vipc_channel_wait_readable(accepted, 2000u, &error);
+    CHECK(status == VIPC_OK, "server-readable wakes when bytes arrive");
+
+    status = vipc_channel_receive(
+        accepted,
+        &received,
+        payload,
+        (uint32_t)sizeof(payload),
+        &payload_size,
+        2000u,
+        &error);
+    CHECK(status == VIPC_OK, "server-readable receive after readiness");
+    CHECK(received.kind == VIPC_KIND_REQUEST,
+        "server-readable request kind");
+    CHECK(received.operation == VIPC_APP_OPERATION_MIN + 91u,
+        "server-readable request operation");
+    CHECK(received.correlation_id == UINT64_C(0x9191),
+        "server-readable request correlation");
+    CHECK(payload_size == sizeof(request_payload)
+            && memcmp(payload, request_payload, sizeof(request_payload)) == 0,
+        "server-readable wait consumes no payload");
+
+    vipc_channel_destroy(accepted);
+    vipc_channel_destroy(client);
+    vipc_server_destroy(server);
+}
+
+static void test_listener_poll_preserves_accepted_channel(void) {
+    char endpoint[64];
+    vipc_server *server = NULL;
+    vipc_channel *client = NULL;
+    vipc_channel *accepted = NULL;
+    vipc_error error;
+    vipc_status status;
+    vipc_message request;
+    vipc_message received;
+    uint8_t payload[8];
+    uint32_t payload_size = 0u;
+    uint32_t i;
+    static const uint8_t request_payload[] = { 'p', 'o', 'l', 'l' };
+
+    (void)sprintf_s(
+        endpoint,
+        sizeof(endpoint),
+        "listener-poll-%lu",
+        (unsigned long)GetCurrentProcessId());
+
+    status = vipc_server_create(endpoint, &server, &error);
+    CHECK(status == VIPC_OK, "listener-poll server create");
+    if (status != VIPC_OK) return;
+
+    status = vipc_client_connect(endpoint, 2000u, &client, &error);
+    CHECK(status == VIPC_OK, "listener-poll client connect");
+    if (status != VIPC_OK) {
+        vipc_server_destroy(server);
+        return;
+    }
+
+    status = vipc_server_accept(server, 2000u, &accepted, &error);
+    CHECK(status == VIPC_OK, "listener-poll accept");
+    if (status != VIPC_OK) {
+        vipc_channel_destroy(client);
+        vipc_server_destroy(server);
+        return;
+    }
+
+    /*
+     * Mirror Workmark's helper loop: once a persistent channel exists it polls
+     * for additional clients with accept(0), then gives one accepted channel a
+     * bounded idle readiness wait. Neither operation may disturb the already
+     * accepted stream.
+     */
+    for (i = 0u; i < 6u; ++i) {
+        vipc_channel *unexpected = NULL;
+        status = vipc_server_accept(server, 0u, &unexpected, &error);
+        CHECK(status == VIPC_ERR_TIMEOUT, "listener-poll accept(0) timeout");
+        CHECK(unexpected == NULL, "listener-poll accept(0) no channel");
+
+        status = vipc_channel_wait_readable(accepted, 50u, &error);
+        CHECK(status == VIPC_ERR_TIMEOUT, "listener-poll idle readiness timeout");
+        CHECK(vipc_channel_is_open(accepted) == 1,
+            "listener-poll accepted channel remains open");
+        CHECK(vipc_channel_is_open(client) == 1,
+            "listener-poll client channel remains open");
+    }
+
+    request.kind = VIPC_KIND_REQUEST;
+    request.flags = VIPC_FLAG_NONE;
+    request.operation = VIPC_APP_OPERATION_MIN + 92u;
+    request.correlation_id = UINT64_C(0x9292);
+    request.payload_size = (uint32_t)sizeof(request_payload);
+    status = vipc_channel_send(
+        client,
+        &request,
+        request_payload,
+        2000u,
+        &error);
+    CHECK(status == VIPC_OK, "listener-poll send after idle polling");
+
+    status = vipc_channel_wait_readable(accepted, 2000u, &error);
+    CHECK(status == VIPC_OK, "listener-poll accepted channel becomes readable");
+    status = vipc_channel_receive(
+        accepted,
+        &received,
+        payload,
+        (uint32_t)sizeof(payload),
+        &payload_size,
+        2000u,
+        &error);
+    CHECK(status == VIPC_OK, "listener-poll receive after idle polling");
+    CHECK(payload_size == sizeof(request_payload)
+            && memcmp(payload, request_payload, sizeof(request_payload)) == 0,
+        "listener-poll payload preserved");
+
+    vipc_channel_destroy(accepted);
+    vipc_channel_destroy(client);
+    vipc_server_destroy(server);
 }
 
 static void test_windows_transport(void) {
@@ -1118,6 +1428,15 @@ int main(void) {
     trace_stage("windows_transport:start");
     test_windows_transport();
     trace_stage("windows_transport:done");
+    trace_stage("wait_readable:start");
+    test_wait_readable_preserves_idle_channel();
+    trace_stage("wait_readable:done");
+    trace_stage("server_wait_readable:start");
+    test_server_wait_readable_preserves_idle_channel();
+    trace_stage("server_wait_readable:done");
+    trace_stage("listener_poll:start");
+    test_listener_poll_preserves_accepted_channel();
+    trace_stage("listener_poll:done");
     trace_stage("concurrent_write_busy:start");
     test_concurrent_write_busy();
     trace_stage("concurrent_write_busy:done");

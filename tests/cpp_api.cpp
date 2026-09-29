@@ -16,6 +16,7 @@
 namespace {
 
 constexpr std::uint32_t kTimeoutMs = 2000u;
+constexpr std::uint32_t kIdleTimeoutMs = 20u;
 constexpr std::uint32_t kOperation = VIPC_APP_OPERATION_MIN + 90u;
 
 bool check(bool condition, const char* label) {
@@ -56,6 +57,15 @@ int main() {
         server_ok = check(
             server.accept(kTimeoutMs, accepted, &server_error) == VIPC_OK,
             "server accept");
+        if (!server_ok) return;
+
+        /* The accepted channel is exercised through the same readiness façade
+         * a persistent helper would use before starting a framed read. */
+        server_ok = check(
+            accepted.wait_readable(kTimeoutMs, &server_error) == VIPC_OK
+                && server_error.phase() == VIPC_PHASE_NONE
+                && accepted.is_open(),
+            "server wait_readable observes the client request");
         if (!server_ok) return;
 
         server_ok = check(
@@ -128,6 +138,39 @@ int main() {
         return 1;
     }
 
+    /*
+     * A default-constructed façade has no native channel, so the readiness wait
+     * must fail argument validation instead of dereferencing anything.
+     */
+    {
+        vectoripc::Channel detached;
+        vectoripc::Error detached_error;
+        if (!check(
+                detached.wait_readable(0u, &detached_error)
+                        == VIPC_ERR_INVALID_ARGUMENT
+                    && detached_error.phase() == VIPC_PHASE_WAIT_READABLE
+                    && detached_error.status() == VIPC_ERR_INVALID_ARGUMENT
+                    && !detached.is_open(),
+                "detached wait_readable argument validation")) {
+            server_thread.join();
+            return 1;
+        }
+    }
+
+    /*
+     * Readiness is non-consuming: a timeout on an idle channel must not touch
+     * the stream, and the channel must stay usable for the real exchange below.
+     */
+    if (!check(
+            moved.wait_readable(kIdleTimeoutMs, &error) == VIPC_ERR_TIMEOUT
+                && error.phase() == VIPC_PHASE_WAIT_READABLE
+                && error.status() == VIPC_ERR_TIMEOUT
+                && moved.is_open(),
+            "client idle wait_readable timeout is non-destructive")) {
+        server_thread.join();
+        return 1;
+    }
+
     const std::array<std::uint8_t, 5> request_payload{
         0x00u, 0x01u, 0xffu, 0x80u, 0x7fu
     };
@@ -153,6 +196,21 @@ int main() {
     vectoripc::Message response{};
     std::array<std::uint8_t, 32> response_payload{};
     std::uint32_t response_size = 0u;
+
+    /*
+     * The server has already written its response, so readiness must be
+     * observable without a poll delay and without consuming anything.
+     */
+    if (!check(
+            moved.wait_readable(kTimeoutMs, &error) == VIPC_OK
+                && error.phase() == VIPC_PHASE_NONE
+                && error.status() == VIPC_OK
+                && moved.is_open(),
+            "client wait_readable observes the queued response")) {
+        server_thread.join();
+        return 1;
+    }
+
     if (!check(
             moved.receive(
                 response,

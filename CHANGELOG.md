@@ -6,6 +6,55 @@ VectorIPC uses semantic product versions. The product version is intentionally
 independent of the C ABI version, wire protocol version, ExternalObject adapter
 version, and ExtendScript wrapper version.
 
+## [0.1.3] - 2026-09-29
+
+### Added
+
+- Added `vipc_channel_wait_readable()` and the C++ `Channel::wait_readable()`
+  façade for bounded, non-consuming readiness waits on persistent channels.
+  This API is new in v0.1.3 and ships with its complete failure contract:
+  `VIPC_ERR_TIMEOUT` consumes no bytes and leaves the channel open and
+  synchronized, `VIPC_ERR_BUSY` returns immediately, and a definitive terminal
+  failure — `VIPC_ERR_PEER_CLOSED` or a real I/O failure — closes the channel
+  before returning, so `vipc_channel_is_open()` reports the truth and later
+  operations report `VIPC_ERR_NOT_CONNECTED`.
+- Added `vectoripc_readiness_stress` covering repeated idle readiness timeouts,
+  peer-close detection, single-reader-slot `VIPC_ERR_BUSY` collisions, and
+  long-idle duplex survival. It runs in the Release, `/analyze`, and AddressSanitizer
+  gates, and a longer configuration runs in `npm run test:stress`.
+- Added `vectoripc_readiness_idle_bench` (`npm run bench:idle`) which measures
+  idle CPU with `GetThreadTimes`/`GetProcessTimes` against wall time, with a
+  counter liveness check, tick-quantum detection, a matched blocked control, and
+  sample count/median/p95 reporting.
+
+### Changed
+
+- A `vipc_channel_receive()` timeout retains its existing hard-deadline poison
+  semantics because a partial framed read may already have consumed bytes. A
+  `vipc_channel_wait_readable()` timeout is non-destructive by contrast: it
+  returns `VIPC_ERR_TIMEOUT` without consuming bytes or poisoning the channel.
+- The implementation's readiness poll constant (`VIPC_READABLE_POLL_MS`, 2 ms)
+  is documented as a nominal poll period rather than a latency promise:
+  `Sleep()` rounds up to the 15.625 ms system timer tick, so readiness is
+  tick-bounded. See decision D23 and `docs/BENCHMARKS.md`.
+
+### Compatibility
+
+- Product version advances to `0.1.3`.
+- C ABI version remains `1`; the new entry point is additive and existing
+  structs/layouts are unchanged.
+- Wire protocol remains `VIPC/1.0`.
+
+### Measured
+
+- Idle readiness over 300 s of continuous waiting: **0.104 % of one core**
+  (conservative bound 0.130 %), against a matched 300 s blocked control of
+  0.000 ms process CPU.
+- Readiness wake latency: **8.116 ms median / 14.972 ms p95**, bounded by the
+  15.625 ms system timer tick that quantizes the nominal 2 ms poll. `Sleep()`
+  rounds up to the tick, so `VIPC_READABLE_POLL_MS` is a nominal period and not
+  a latency promise. See `docs/BENCHMARKS.md` and decision D23.
+
 ## [0.1.2] - 2026-09-23
 
 Patch release: consolidate the ExternalObject adapter's return-value helpers on

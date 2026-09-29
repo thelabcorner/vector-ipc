@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(VectorIPC VERSION 0.1.2 LANGUAGES C)
+project(VectorIPC VERSION 0.1.3 LANGUAGES C)
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
@@ -198,6 +198,14 @@ if(VIPC_BUILD_TESTS)
         ${CMAKE_CURRENT_SOURCE_DIR}/include
     )
 
+    add_executable(vectoripc_readiness_stress
+        tests/readiness_stress.c
+    )
+    target_link_libraries(vectoripc_readiness_stress PRIVATE vectoripc)
+    target_include_directories(vectoripc_readiness_stress PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+
     if(MSVC)
         foreach(vipc_test_target
             vectoripc_protocol_fuzz
@@ -207,7 +215,8 @@ if(VIPC_BUILD_TESTS)
             vectoripc_timeout_stress
             vectoripc_full_duplex_stress
             vectoripc_transport_soak
-            vectoripc_cancellation_stress)
+            vectoripc_cancellation_stress
+            vectoripc_readiness_stress)
             target_compile_options(${vipc_test_target} PRIVATE /W4 /WX /sdl /guard:cf)
             target_link_options(${vipc_test_target} PRIVATE /guard:cf)
         endforeach()
@@ -220,6 +229,7 @@ if(VIPC_BUILD_TESTS)
     add_test(NAME vectoripc_timeout_stress COMMAND vectoripc_timeout_stress)
     add_test(NAME vectoripc_full_duplex_stress COMMAND vectoripc_full_duplex_stress)
     add_test(NAME vectoripc_cancellation_stress COMMAND vectoripc_cancellation_stress)
+    add_test(NAME vectoripc_readiness_stress COMMAND vectoripc_readiness_stress)
 
     if(VIPC_BUILD_CPP_TESTS)
         add_executable(vectoripc_cpp_api
@@ -305,6 +315,18 @@ if(VIPC_BUILD_BENCHMARKS)
     if(MSVC)
         target_compile_options(vectoripc_matrix_bench PRIVATE /W4 /WX /sdl /guard:cf)
         target_link_options(vectoripc_matrix_bench PRIVATE /guard:cf)
+    endif()
+
+    add_executable(vectoripc_readiness_idle_bench
+        benchmarks/readiness_idle_bench.c
+    )
+    target_link_libraries(vectoripc_readiness_idle_bench PRIVATE vectoripc)
+    target_include_directories(vectoripc_readiness_idle_bench PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    if(MSVC)
+        target_compile_options(vectoripc_readiness_idle_bench PRIVATE /W4 /WX /sdl /guard:cf)
+        target_link_options(vectoripc_readiness_idle_bench PRIVATE /guard:cf)
     endif()
 endif()
 

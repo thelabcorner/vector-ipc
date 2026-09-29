@@ -22,6 +22,7 @@ execFileSync(process.execPath, ["tools/build.mjs", "build"], {
 run("vectoripc_transport_boundaries");
 run("vectoripc_timeout_stress", ["2000"]);
 run("vectoripc_cancellation_stress", ["2000", "500"]);
+run("vectoripc_readiness_stress", ["200", "10", "20", "5000"]);
 run("vectoripc_full_duplex_stress", ["100000"]);
 run("vectoripc_transport_soak", ["1000000", "4096"]);
 run("vectoripc_transport_soak", ["50000", "262144"]);
