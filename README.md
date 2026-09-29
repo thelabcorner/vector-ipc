@@ -47,6 +47,9 @@ Microsecond timing for ExtendScript automation.
 **[ESRAND](https://github.com/thelabcorner/es-rand)**  
 Deterministic random streams and sampling for ExtendScript.
 
+**[ESUUID](https://github.com/thelabcorner/es-uuid)**  
+RFC 9562 UUID generation, parsing, and conversion for ExtendScript.
+
 </td>
 <td width="50%" valign="top">
 
@@ -69,6 +72,9 @@ TypeScript-to-ExtendScript build, compatibility, and live-parse tooling.
 
 **[ESDB](https://github.com/thelabcorner/esdb)**  
 Native state and durable storage for Adobe tooling.
+
+**[COMTool](https://github.com/thelabcorner/COMTool)**  
+Guarded COM, ExtendScript, plug-in, and debugger automation for Adobe desktop apps.
 
 **ESOBF** <sub>coming soon</sub>  
 Obfuscation for hardened JSX distribution.
